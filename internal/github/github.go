@@ -45,8 +45,6 @@ func (g *GitHub) getToken() error {
 		Issuer:    g.id,
 	}
 
-	log.Println("now:", time.Now().Unix())
-
 	bearer := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
 	key, err := ioutil.ReadFile(g.keyFile)
@@ -72,8 +70,7 @@ func (g *GitHub) getToken() error {
 	c := github.NewClient(nil)
 	c.UserAgent = UserAgent
 
-	//req, err := c.NewRequest("GET", fmt.Sprintf("/repos/bf-test/gopherci-dev1/collaborators"), nil)
-	req, err := c.NewRequest("POST", fmt.Sprintf("/installations/%v/access_tokens", "1659"), nil)
+	req, err := c.NewRequest("POST", fmt.Sprintf("/installations/%v/access_tokens", "1722"), nil)
 	if err != nil {
 		return fmt.Errorf("getToken: could not create request: %v", err)
 	}
