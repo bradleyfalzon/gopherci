@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/google/go-github/github"
 )
@@ -20,19 +21,20 @@ const (
 )
 
 type GitHub struct {
-	id      string // id is the integration id
-	keyFile string // keyFile is the path to private key
-
+	analyser analyser.Analyser
+	id       string // id is the integration id
+	keyFile  string // keyFile is the path to private key
 }
 
 // New returns a GitHub object for use with GitHub integrations
 // https://developer.github.com/changes/2016-09-14-Integrations-Early-Access/
 // id is the integration identifier (such as 394), keyFile is the path to the
 // private key provided to you by GitHub during the integration registration.
-func New(id, keyFile string) (*GitHub, error) {
+func New(analyser analyser.Analyser, id, keyFile string) (*GitHub, error) {
 	g := &GitHub{
-		id:      id,
-		keyFile: keyFile,
+		analyser: analyser,
+		id:       id,
+		keyFile:  keyFile,
 	}
 	return g, g.getToken()
 }

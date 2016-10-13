@@ -73,7 +73,18 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("%v pr %v", *e.Action, *e.Number)
 		log.Printf("Diff url: %v", *e.PullRequest.DiffURL)
-		log.Printf("Clone url: %v", *e.Repo.CloneURL)
+		log.Printf("Ref (branch): %v", *e.PullRequest.Head.Ref)
+		log.Printf("Clone url: %v", *e.PullRequest.Head.Repo.CloneURL)
+
+		// TODO we want to background this and reply to http request
+		err := g.analyser.Analyse(*e.PullRequest.Head.Repo.CloneURL, *e.PullRequest.Head.Ref, *e.PullRequest.DiffURL)
+		if err != nil {
+			log.Printf("could not analyse %v pr %v: %v", *e.Repo.URL, *e.Number, err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		// Get results and post as comments on github pr
 	default:
 		log.Printf("ignoring unknown event: %T", event)
 	}
