@@ -32,16 +32,18 @@ func dumpRequest(r *http.Request) []byte {
 	return body
 }
 
+// CallBackHandler is the net/http handler for github callbacks.
 func (g *GitHub) CallBackHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("callbackHandler")
 	dumpRequest(r)
 }
 
+// WebHookHandler is the net/http handler for github webhooks.
 func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Println(err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -77,10 +79,11 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Clone url: %v", *e.PullRequest.Head.Repo.CloneURL)
 
 		// TODO we want to background this and reply to http request
-		err := g.analyser.Analyse(*e.PullRequest.Head.Repo.CloneURL, *e.PullRequest.Head.Ref, *e.PullRequest.DiffURL)
+		pr := e.PullRequest
+		err := g.analyser.Analyse(*pr.Head.Repo.CloneURL, *pr.Head.Ref, *pr.DiffURL)
 		if err != nil {
 			log.Printf("could not analyse %v pr %v: %v", *e.Repo.URL, *e.Number, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
