@@ -57,9 +57,9 @@ func (g *GitHub) getToken() error {
 		return errors.Wrap(err, "could not read private key")
 	}
 
-	block, err := pem.Decode(key)
-	if block == nil || err != nil {
-		return errors.Wrap(err, "could not decode pem private key")
+	block, _ := pem.Decode(key)
+	if block == nil {
+		return errors.New("could not decode pem private key")
 	}
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
