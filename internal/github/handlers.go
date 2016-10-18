@@ -9,7 +9,7 @@ import (
 	"net/http/httputil"
 	"os"
 
-	"github.com/google/go-github/github"
+	"github.com/bradleyfalzon/go-github/github"
 )
 
 func dumpRequest(r *http.Request) []byte {
@@ -80,14 +80,19 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 
 		// TODO we want to background this and reply to http request
 		pr := e.PullRequest
-		err := g.analyser.Analyse(*pr.Head.Repo.CloneURL, *pr.Head.Ref, *pr.DiffURL)
+		issues, err := g.analyser.Analyse(*pr.Head.Repo.CloneURL, *pr.Head.Ref, *pr.DiffURL)
 		if err != nil {
 			log.Printf("could not analyse %v pr %v: %v", *e.Repo.URL, *e.Number, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Get results and post as comments on github pr
+		log.Printf("Comment url: %v", *e.PullRequest.ReviewCommentURL)
+		log.Printf("Comments url: %v", *e.PullRequest.ReviewCommentsURL)
+
+		// Post as comments on github pr
+		g.WriteIssues(*e.PullRequest.ReviewCommentsURL, issues)
+
 	default:
 		log.Printf("ignoring unknown event: %T", event)
 	}

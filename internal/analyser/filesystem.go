@@ -3,6 +3,7 @@ package analyser
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -45,20 +46,20 @@ func NewFileSystem(gopath string) (*FileSystem, error) {
 }
 
 // Analyse implements Analyser interface
-func (fs *FileSystem) Analyse(repoURL, branch, patchURL string) error {
+func (fs *FileSystem) Analyse(repoURL, branch, patchURL string) ([]Issue, error) {
 	log.Printf("fs.Analyse repoURL %q branch %q pathURL %q GOPATH %q", repoURL, branch, patchURL, fs.gopath)
 
 	// download patch
 	patch, err := http.Get(patchURL)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer patch.Body.Close()
 
 	// make temp dir
 	tmpdir, err := fs.mktemp()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// TODO on second thought, I was using tmpdir to allow safe concurrency
@@ -72,7 +73,7 @@ func (fs *FileSystem) Analyse(repoURL, branch, patchURL string) error {
 	log.Printf("path: %v %v, dir: %v, env: %v", cmd.Path, cmd.Args, cmd.Dir, cmd.Env)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("could not %v %v: %s\n%s", cmd.Path, cmd.Args, err, out)
+		return nil, fmt.Errorf("could not %v %v: %s\n%s", cmd.Path, cmd.Args, err, out)
 	}
 	//defer os.RemoveAll(tmpdir)
 
@@ -80,12 +81,8 @@ func (fs *FileSystem) Analyse(repoURL, branch, patchURL string) error {
 
 	// fetch dependencies, some static analysis tools require building a project
 
-	var (
-		// allIssues is output from static analysis tools
-		allIssues bytes.Buffer
-		// prIssues is filtered issues related only to this pr
-		prIssues bytes.Buffer
-	)
+	// allIssues is output from static analysis tools
+	var allIssues bytes.Buffer
 
 	// run go vet
 	// TODO expand this to have a user configurable amount of tools/libraries
@@ -106,14 +103,22 @@ func (fs *FileSystem) Analyse(repoURL, branch, patchURL string) error {
 		Debug: os.Stdout,
 	}
 
-	// TODO https://github.com/bradleyfalzon/revgrep/issues/10
-	n := checker.Check(&allIssues, &prIssues)
-	log.Printf("revgrep found %v issues", n)
-	log.Printf("issues:\n%s", prIssues.String())
+	revIssues, err := checker.Check(&allIssues, ioutil.Discard)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("revgrep found %v issues", len(revIssues))
 
-	// filter results and return a []Issue (or []Analysis)
+	var issues []Issue
+	for _, issue := range revIssues {
+		issues = append(issues, Issue{
+			File:    issue.File,
+			HunkPos: issue.HunkPos,
+			Issue:   issue.Issue,
+		})
+	}
 
-	return nil
+	return issues, nil
 }
 
 // mktemp makes a random and temporary directory within GOPATH/src/gopherci

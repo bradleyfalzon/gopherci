@@ -4,12 +4,13 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"github.com/pkg/errors"
 	"io/ioutil"
 	"log"
 	"net/http/httputil"
 	"os"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/dgrijalva/jwt-go"
@@ -40,6 +41,7 @@ func New(analyser analyser.Analyser, id, keyFile string) (*GitHub, error) {
 		id:       id,
 		keyFile:  keyFile,
 	}
+
 	return g, g.getToken()
 }
 
