@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/bradleyfalzon/revgrep"
+	"github.com/pkg/errors"
 )
 
 // FileSystem analyses a repository and patch for issues using the file
@@ -38,7 +39,7 @@ func NewFileSystem(gopath string) (*FileSystem, error) {
 
 	// TODO check if gopath exists, and directory structure exists mkdirs if not
 	// also check the ensure they are writable
-	// GOPATH/{src,pkg,bin}, GOPATH/src/gopherci/
+	// $GOPATH/{src,pkg,bin}, $GOPATH/src/gopherci/
 
 	return fs, nil
 }
@@ -120,9 +121,8 @@ func (fs *FileSystem) mktemp() (string, error) {
 	rand := strconv.Itoa(int(time.Now().UnixNano()))
 	dir := filepath.Join(fs.gopath, "src", "gopherci", rand)
 	log.Println("mktemp:", dir)
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		return "", fmt.Errorf("mktemp cannot mkdir: %s", err)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", errors.Wrap(err, "mktemp cannot mkdir")
 	}
 	return dir, nil
 }

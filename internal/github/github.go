@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"github.com/pkg/errors"
 	"io/ioutil"
 	"log"
 	"net/http/httputil"
@@ -11,15 +12,18 @@ import (
 	"time"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
-	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/google/go-github/github"
 )
 
 const (
+	// AcceptHeader is the type of Content-Type we expect from github.
 	AcceptHeader = "application/vnd.github.machine-man-preview+json"
-	UserAgent    = "GopherCI"
+	// UserAgent is the user agent of gopherci.
+	UserAgent = "GopherCI"
 )
 
+// GitHub is the type gopherci uses to interract with github.com.
 type GitHub struct {
 	analyser analyser.Analyser
 	id       string // id is the integration id
@@ -39,7 +43,6 @@ func New(analyser analyser.Analyser, id, keyFile string) (*GitHub, error) {
 	return g, g.getToken()
 }
 
-// getToken authentica
 func (g *GitHub) getToken() error {
 	claims := &jwt.StandardClaims{
 		IssuedAt:  time.Now().Unix(),
@@ -51,22 +54,22 @@ func (g *GitHub) getToken() error {
 
 	key, err := ioutil.ReadFile(g.keyFile)
 	if err != nil {
-		return fmt.Errorf("getToken: could not read private key: %v", err)
+		return errors.Wrap(err, "could not read private key")
 	}
 
 	block, _ := pem.Decode(key)
 	if block == nil {
-		return fmt.Errorf("getToken: could not decode pem private key: %v", err)
+		return errors.New("could not decode pem private key")
 	}
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		return fmt.Errorf("getToken: could not parse private key: %v", err)
+		return errors.Wrap(err, "could not parse private key")
 	}
 
 	ss, err := bearer.SignedString(privateKey)
 	if err != nil {
-		return fmt.Errorf("getToken: could not sign jwt: %s", err)
+		return errors.Wrap(err, "could not sign jwt")
 	}
 
 	c := github.NewClient(nil)
@@ -74,7 +77,7 @@ func (g *GitHub) getToken() error {
 
 	req, err := c.NewRequest("POST", fmt.Sprintf("/installations/%v/access_tokens", "1722"), nil)
 	if err != nil {
-		return fmt.Errorf("getToken: could not create request: %v", err)
+		return errors.Wrap(err, "could not create request")
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", ss))
 	req.Header.Set("Accept", AcceptHeader)
@@ -87,7 +90,7 @@ func (g *GitHub) getToken() error {
 
 	resp, err := c.Do(req, os.Stdout)
 	if err != nil {
-		return fmt.Errorf("getToken: could not get access_tokens: %v", err)
+		return errors.Wrap(err, "could not get access_tokens")
 	}
 
 	dump, err = httputil.DumpResponse(resp.Response, false)
