@@ -3,6 +3,7 @@ package github
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -53,6 +54,8 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 	//http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 	//return
 	//}
+
+	fmt.Println(string(body))
 
 	event, err := github.ParseWebHook(github.WebHookType(r), body)
 	if err != nil {

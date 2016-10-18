@@ -2,12 +2,12 @@ package github
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http/httputil"
-	"os"
+	"net/http"
 	"time"
 
 	"github.com/pkg/errors"
@@ -18,47 +18,114 @@ import (
 )
 
 const (
-	// AcceptHeader is the type of Content-Type we expect from github.
-	AcceptHeader = "application/vnd.github.machine-man-preview+json"
-	// UserAgent is the user agent of gopherci.
-	UserAgent = "GopherCI"
+	// acceptHeader is the GitHub Integrations Preview Accept header.
+	acceptHeader = "application/vnd.github.machine-man-preview+json"
 )
 
 // GitHub is the type gopherci uses to interract with github.com.
 type GitHub struct {
-	analyser analyser.Analyser
-	id       string // id is the integration id
-	keyFile  string // keyFile is the path to private key
+	analyser      analyser.Analyser
+	integrationID string            // id is the integration id
+	keyFile       string            // keyFile is the path to private key
+	tr            http.RoundTripper // tr is a transport shared by all installations to reuse http connections
 }
 
 // New returns a GitHub object for use with GitHub integrations
 // https://developer.github.com/changes/2016-09-14-Integrations-Early-Access/
-// id is the integration identifier (such as 394), keyFile is the path to the
+// integrationID is the GitHub Integration ID (not installation ID), keyFile is the path to the
 // private key provided to you by GitHub during the integration registration.
-func New(analyser analyser.Analyser, id, keyFile string) (*GitHub, error) {
+func New(analyser analyser.Analyser, integrationID, keyFile string) (*GitHub, error) {
 	g := &GitHub{
-		analyser: analyser,
-		id:       id,
-		keyFile:  keyFile,
+		analyser:      analyser,
+		integrationID: integrationID,
+		keyFile:       keyFile,
+		tr:            http.DefaultTransport,
 	}
 
-	return g, g.getToken()
+	// TODO some prechecks should be done now, instead of later, fail fast/early.
+
+	return g, nil
 }
 
-func (g *GitHub) getToken() error {
-	claims := &jwt.StandardClaims{
-		IssuedAt:  time.Now().Unix(),
-		ExpiresAt: time.Now().Add(3 * time.Minute).Unix(),
-		Issuer:    g.id,
+// writeComment is just an example of how to use the installation transport
+func (g *GitHub) writeComment() {
+
+	itr := g.newInstallationTransport(g.tr, "1859")
+	httpClient := &http.Client{Transport: itr}
+	ghClient := github.NewClient(httpClient)
+
+	comment := &github.PullRequestComment{
+		Body:     github.String("this is a body"),
+		CommitID: github.String("3c9b0fa6a2ff9e388187b3001710a3b4d4062024"),
+		Path:     github.String("main.go"),
+		Position: github.Int(7),
 	}
 
+	cmt, resp, err := ghClient.PullRequests.CreateComment("bf-test", "gopherci-dev1", 16, comment)
+	log.Print(cmt)
+	log.Print(resp)
+	log.Print(err)
+
+}
+
+// installationTransport provides a http.RoundTripper by wrapping an existing
+// http.RoundTripper (that's shared between multiple installation transports to
+// reuse underlying http connections), but provides GitHub Integration
+// authentication as an installation.
+//
+// See https://developer.github.com/early-access/integrations/authentication/#as-an-installation
+type installationTransport struct {
+	tr             http.RoundTripper // tr is the underlying roundtripper being wrapped
+	keyFile        string            // keyFile is the path to GitHub Intregration's PEM encoded private key
+	integrationID  string            // integrationID is the GitHub Integration's Installation ID
+	installationID string            // installationID is the GitHub Integration's Installation ID
+	token          *accessToken      // token is the installation's access token
+}
+
+// accessToken is an installation access token
+type accessToken struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+func (g *GitHub) newInstallationTransport(tr http.RoundTripper, installationID string) *installationTransport {
+	return &installationTransport{
+		tr:             tr,
+		keyFile:        g.keyFile,
+		integrationID:  g.integrationID,
+		installationID: installationID,
+	}
+}
+
+func (t *installationTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if t.token == nil || t.token.ExpiresAt.Add(-time.Minute).Before(time.Now()) {
+		// Token is not set or expired/nearly expired, so refresh
+		if err := t.refreshToken(); err != nil {
+			return nil, errors.Wrap(err, "could not refresh installation token")
+		}
+	}
+
+	req.Header.Set("Authorization", "token "+t.token.Token)
+	req.Header.Set("Accept", acceptHeader)
+	resp, err := t.tr.RoundTrip(req)
+	return resp, err
+}
+
+func (t *installationTransport) refreshToken() error {
+	// TODO these claims could probably be reused between installations before expiry
+	claims := &jwt.StandardClaims{
+		IssuedAt:  time.Now().Unix(),
+		ExpiresAt: time.Now().Add(time.Minute).Unix(),
+		Issuer:    t.integrationID,
+	}
 	bearer := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
-	key, err := ioutil.ReadFile(g.keyFile)
+	key, err := ioutil.ReadFile(t.keyFile)
 	if err != nil {
 		return errors.Wrap(err, "could not read private key")
 	}
 
+	// discard extra bytes in the file, we only care about the key
 	block, _ := pem.Decode(key)
 	if block == nil {
 		return errors.New("could not decode pem private key")
@@ -74,32 +141,23 @@ func (g *GitHub) getToken() error {
 		return errors.Wrap(err, "could not sign jwt")
 	}
 
-	c := github.NewClient(nil)
-	c.UserAgent = UserAgent
-
-	req, err := c.NewRequest("POST", fmt.Sprintf("/installations/%v/access_tokens", "1722"), nil)
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://api.github.com/installations/%v/access_tokens", t.installationID), nil)
 	if err != nil {
 		return errors.Wrap(err, "could not create request")
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", ss))
-	req.Header.Set("Accept", AcceptHeader)
+	req.Header.Set("Accept", acceptHeader)
 
-	dump, err := httputil.DumpRequestOut(req, true)
-	if err != nil {
-		log.Println("could not dump request out:", err)
-	}
-	log.Printf("%s", dump)
-
-	resp, err := c.Do(req, os.Stdout)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return errors.Wrap(err, "could not get access_tokens")
 	}
+	defer resp.Body.Close()
 
-	dump, err = httputil.DumpResponse(resp.Response, false)
-	if err != nil {
-		log.Println("could not dump response:", err)
+	if err := json.NewDecoder(resp.Body).Decode(&t.token); err != nil {
+		return err
 	}
-	log.Printf("%s", dump)
 
 	return nil
 }
