@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/bradleyfalzon/go-github/github"
+	"github.com/pkg/errors"
 )
 
 func dumpRequest(r *http.Request) []byte {
@@ -66,6 +67,34 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("parsed webhook event: %T", event)
 
 	switch e := event.(type) {
+	case *github.IntegrationInstallationEvent:
+		switch *e.Action {
+		case "created":
+			// Record the installation event in the database
+			log.Printf("integration installation, installation id: %v, on account %v, by account %v",
+				*e.Installation.ID, *e.Installation.Account.Login, *e.Sender.Login,
+			)
+			err := g.db.GHAddInstallation(*e.Installation.ID, *e.Installation.Account.ID)
+			if err != nil {
+				log.Println(errors.Wrap(err, "could not insert installation into database"))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+		case "deleted":
+			// Remove the installation event from the database
+			log.Printf("integration removal, installation id: %v, on account %v, by account %v",
+				*e.Installation.ID, *e.Installation.Account.Login, *e.Sender.Login,
+			)
+			err := g.db.GHRemoveInstallation(*e.Installation.ID, *e.Installation.Account.ID)
+			if err != nil {
+				log.Println(errors.Wrap(err, "could not delete installation from database"))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+		default:
+			log.Printf("ignoring integration installation event action: %q", *e.Action)
+			break
+		}
 	case *github.PullRequestEvent:
 		if e.Action == nil || *e.Action != "opened" {
 			log.Printf("ignoring PR #%v action: %q", *e.Number, *e.Action)
@@ -80,6 +109,9 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Diff url: %v", *e.PullRequest.DiffURL)
 		log.Printf("Ref (branch): %v", *e.PullRequest.Head.Ref)
 		log.Printf("Clone url: %v", *e.PullRequest.Head.Repo.CloneURL)
+
+		settings, err := g.db.GHUserSettings(*e.Repo.Owner.Login)
+		_ = settings
 
 		// TODO we want to background this and reply to http request
 		pr := e.PullRequest

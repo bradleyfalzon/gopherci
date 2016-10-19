@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
+	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/go-github/github"
 )
@@ -24,6 +25,7 @@ const (
 
 // GitHub is the type gopherci uses to interract with github.com.
 type GitHub struct {
+	db            *db.DB
 	analyser      analyser.Analyser
 	integrationID string            // id is the integration id
 	keyFile       string            // keyFile is the path to private key
@@ -34,9 +36,10 @@ type GitHub struct {
 // https://developer.github.com/changes/2016-09-14-Integrations-Early-Access/
 // integrationID is the GitHub Integration ID (not installation ID), keyFile is the path to the
 // private key provided to you by GitHub during the integration registration.
-func New(analyser analyser.Analyser, integrationID, keyFile string) (*GitHub, error) {
+func New(analyser analyser.Analyser, db *db.DB, integrationID, keyFile string) (*GitHub, error) {
 	g := &GitHub{
 		analyser:      analyser,
+		db:            db,
 		integrationID: integrationID,
 		keyFile:       keyFile,
 		tr:            http.DefaultTransport,
