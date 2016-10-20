@@ -79,7 +79,7 @@ func (i *Installation) SetStatus(statusURL string, status StatusState) error {
 	return nil
 }
 
-func (i *Installation) WriteIssues(reviewCommentsURL string, prNumber int, commit string, issues []analyser.Issue) {
+func (i *Installation) WriteIssues(prNumber int, commit string, issues []analyser.Issue) {
 	// TODO make this idempotent, so don't post the same issue twice
 	// which may occur when we support additional commits to a PR (synchronize
 	// api event)

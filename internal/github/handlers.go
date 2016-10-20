@@ -10,7 +10,7 @@ import (
 	"net/http/httputil"
 	"os"
 
-	"github.com/bradleyfalzon/go-github/github"
+	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 )
 
@@ -137,7 +137,7 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Post as comments on github pr
-		install.WriteIssues(*pr.ReviewCommentsURL, *pr.Number, *pr.Head.SHA, issues)
+		install.WriteIssues(*pr.Number, *pr.Head.SHA, issues)
 
 		// Set the CI status API to success
 		err = install.SetStatus(*pr.StatusesURL, StatusStateSuccess)
