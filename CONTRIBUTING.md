@@ -24,6 +24,7 @@ You'll need:
     - Web hook secret: shared secret
     - Permissions
         - Repository metadata: Read-only
+        - Commit statuses: Read & Write
         - Repository contents: Read-only
         - Pull requests: Read & write
             - Pull request event
