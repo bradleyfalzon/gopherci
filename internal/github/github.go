@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -27,7 +28,7 @@ const (
 type GitHub struct {
 	db            *db.DB
 	analyser      analyser.Analyser
-	integrationID string            // id is the integration id
+	integrationID int               // id is the integration id
 	keyFile       string            // keyFile is the path to private key
 	tr            http.RoundTripper // tr is a transport shared by all installations to reuse http connections
 }
@@ -37,10 +38,15 @@ type GitHub struct {
 // integrationID is the GitHub Integration ID (not installation ID), keyFile is the path to the
 // private key provided to you by GitHub during the integration registration.
 func New(analyser analyser.Analyser, db *db.DB, integrationID, keyFile string) (*GitHub, error) {
+	iid, err := strconv.ParseInt(integrationID, 10, 64)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not parse integrationID")
+	}
+
 	g := &GitHub{
 		analyser:      analyser,
 		db:            db,
-		integrationID: integrationID,
+		integrationID: int(iid),
 		keyFile:       keyFile,
 		tr:            http.DefaultTransport,
 	}
@@ -51,9 +57,9 @@ func New(analyser analyser.Analyser, db *db.DB, integrationID, keyFile string) (
 }
 
 // writeComment is just an example of how to use the installation transport
-func (g *GitHub) writeComment() {
+func (g *GitHub) writeComment(installationID, pr int) {
 
-	itr := g.newInstallationTransport(g.tr, "1859")
+	itr := g.newInstallationTransport(g.tr, installationID)
 	httpClient := &http.Client{Transport: itr}
 	ghClient := github.NewClient(httpClient)
 
@@ -64,11 +70,10 @@ func (g *GitHub) writeComment() {
 		Position: github.Int(7),
 	}
 
-	cmt, resp, err := ghClient.PullRequests.CreateComment("bf-test", "gopherci-dev1", 16, comment)
-	log.Print(cmt)
-	log.Print(resp)
-	log.Print(err)
-
+	cmt, resp, err := ghClient.PullRequests.CreateComment("bf-test", "gopherci-dev1", pr, comment)
+	log.Print("cmt:", cmt)
+	log.Print("resp:", resp)
+	log.Print("err:", err)
 }
 
 // installationTransport provides a http.RoundTripper by wrapping an existing
@@ -80,8 +85,8 @@ func (g *GitHub) writeComment() {
 type installationTransport struct {
 	tr             http.RoundTripper // tr is the underlying roundtripper being wrapped
 	keyFile        string            // keyFile is the path to GitHub Intregration's PEM encoded private key
-	integrationID  string            // integrationID is the GitHub Integration's Installation ID
-	installationID string            // installationID is the GitHub Integration's Installation ID
+	integrationID  int               // integrationID is the GitHub Integration's Installation ID
+	installationID int               // installationID is the GitHub Integration's Installation ID
 	token          *accessToken      // token is the installation's access token
 }
 
@@ -91,7 +96,7 @@ type accessToken struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-func (g *GitHub) newInstallationTransport(tr http.RoundTripper, installationID string) *installationTransport {
+func (g *GitHub) newInstallationTransport(tr http.RoundTripper, installationID int) *installationTransport {
 	return &installationTransport{
 		tr:             tr,
 		keyFile:        g.keyFile,
@@ -119,7 +124,7 @@ func (t *installationTransport) refreshToken() error {
 	claims := &jwt.StandardClaims{
 		IssuedAt:  time.Now().Unix(),
 		ExpiresAt: time.Now().Add(time.Minute).Unix(),
-		Issuer:    t.integrationID,
+		Issuer:    strconv.Itoa(t.integrationID),
 	}
 	bearer := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
