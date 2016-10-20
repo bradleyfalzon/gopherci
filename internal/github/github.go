@@ -6,7 +6,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -16,7 +15,6 @@ import (
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/google/go-github/github"
 )
 
 const (
@@ -56,26 +54,6 @@ func New(analyser analyser.Analyser, db *db.DB, integrationID, keyFile string) (
 	return g, nil
 }
 
-// writeComment is just an example of how to use the installation transport
-func (g *GitHub) writeComment(installationID, pr int) {
-
-	itr := g.newInstallationTransport(g.tr, installationID)
-	httpClient := &http.Client{Transport: itr}
-	ghClient := github.NewClient(httpClient)
-
-	comment := &github.PullRequestComment{
-		Body:     github.String("this is a body"),
-		CommitID: github.String("3c9b0fa6a2ff9e388187b3001710a3b4d4062024"),
-		Path:     github.String("main.go"),
-		Position: github.Int(7),
-	}
-
-	cmt, resp, err := ghClient.PullRequests.CreateComment("bf-test", "gopherci-dev1", pr, comment)
-	log.Print("cmt:", cmt)
-	log.Print("resp:", resp)
-	log.Print("err:", err)
-}
-
 // installationTransport provides a http.RoundTripper by wrapping an existing
 // http.RoundTripper (that's shared between multiple installation transports to
 // reuse underlying http connections), but provides GitHub Integration
@@ -96,9 +74,9 @@ type accessToken struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-func (g *GitHub) newInstallationTransport(tr http.RoundTripper, installationID int) *installationTransport {
+func (g *GitHub) newInstallationTransport(installationID int) *installationTransport {
 	return &installationTransport{
-		tr:             tr,
+		tr:             g.tr,
 		keyFile:        g.keyFile,
 		integrationID:  g.integrationID,
 		installationID: installationID,

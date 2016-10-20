@@ -105,16 +105,30 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
-		log.Printf("%v pr %v", *e.Action, *e.Number)
-		log.Printf("Diff url: %v", *e.PullRequest.DiffURL)
-		log.Printf("Ref (branch): %v", *e.PullRequest.Head.Ref)
-		log.Printf("Clone url: %v", *e.PullRequest.Head.Repo.CloneURL)
+		pr := e.PullRequest
 
-		settings, err := g.db.GHUserSettings(*e.Repo.Owner.Login)
-		_ = settings
+		// Lookup installation
+		install, err := g.NewInstallation(*e.Repo.Owner.ID)
+		if err != nil {
+			log.Println(errors.Wrap(err, "error getting installation"))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		if install == nil {
+			log.Println("could not find installation")
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+
+		// Set the CI status API to pending
+		err = install.SetStatus(*pr.StatusesURL, StatusStatePending)
+		if err != nil {
+			log.Printf("could not set status to pending for %v: %v", *pr.StatusesURL, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		// TODO we want to background this and reply to http request
-		pr := e.PullRequest
 		issues, err := g.analyser.Analyse(*pr.Head.Repo.CloneURL, *pr.Head.Ref, *pr.DiffURL)
 		if err != nil {
 			log.Printf("could not analyse %v pr %v: %v", *e.Repo.URL, *e.Number, err)
@@ -122,12 +136,16 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Printf("Comment url: %v", *e.PullRequest.ReviewCommentURL)
-		log.Printf("Comments url: %v", *e.PullRequest.ReviewCommentsURL)
-
 		// Post as comments on github pr
-		g.WriteIssues(*e.PullRequest.ReviewCommentsURL, issues)
+		install.WriteIssues(*pr.ReviewCommentsURL, *pr.Number, *pr.Head.SHA, issues)
 
+		// Set the CI status API to success
+		err = install.SetStatus(*pr.StatusesURL, StatusStateSuccess)
+		if err != nil {
+			log.Printf("could not set status to success for %v: %v", *pr.StatusesURL, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	default:
 		log.Printf("ignoring unknown event: %T", event)
 	}
