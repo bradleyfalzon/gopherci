@@ -158,6 +158,10 @@ func (t *installationTransport) refreshToken() error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("received response status %q when fetching %v", resp.Status, req.URL)
+	}
+
 	if err := json.NewDecoder(resp.Body).Decode(&t.token); err != nil {
 		return err
 	}
