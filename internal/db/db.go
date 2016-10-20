@@ -2,26 +2,27 @@ package db
 
 import (
 	"database/sql"
-	"log"
+
+	"github.com/jmoiron/sqlx"
 )
 
 // DB is a sql database repository
 type DB struct {
-	sql *sql.DB
+	sqlx *sqlx.DB
 }
 
-func NewDB(sqlDB *sql.DB) (*DB, error) {
+func NewDB(sqlDB *sql.DB, driverName string) (*DB, error) {
 	db := &DB{
-		sql: sqlDB,
+		sqlx: sqlx.NewDb(sqlDB, driverName),
 	}
-	if err := db.sql.Ping(); err != nil {
+	if err := db.sqlx.Ping(); err != nil {
 		return nil, err
 	}
 	return db, nil
 }
 
 func (db *DB) GHAddInstallation(installationID, accountID int) error {
-	_, err := db.sql.Exec(`
+	_, err := db.sqlx.Exec(`
 INSERT INTO gh_installations (installation_id, account_id)
 	 VALUES (?, ?)`,
 		installationID, accountID,
@@ -30,12 +31,18 @@ INSERT INTO gh_installations (installation_id, account_id)
 }
 
 func (db *DB) GHRemoveInstallation(installationID, accountID int) error {
-	_, err := db.sql.Exec("DELETE FROM gh_installations WHERE installation_id = ? AND account_id = ?", installationID, accountID)
+	_, err := db.sqlx.Exec("DELETE FROM gh_installations WHERE installation_id = ? AND account_id = ?", installationID, accountID)
 	return err
 }
 
-func (db *DB) GHUserSettings(login string) ([]string, error) {
-	log.Printf("looking up user settings for %v", login)
-	// SELECT ..... FROM....
-	return nil, nil
+type GHInstallation struct {
+	ID             int `db:"id"`
+	InstallationID int `db:"installation_id"`
+	AccountID      int `db:"account_id"`
+}
+
+func (db *DB) GHFindInstallation(accountID int) (*GHInstallation, error) {
+	var installation GHInstallation
+	err := db.sqlx.Get(&installation, "SELECT id, installation_id, account_id FROM gh_installations WHERE account_id = ?", accountID)
+	return &installation, err
 }

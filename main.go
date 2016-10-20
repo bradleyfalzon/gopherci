@@ -60,7 +60,7 @@ func main() {
 		log.Fatal(errors.Wrap(err, "could not execute all migrations"))
 	}
 
-	db, err := db.NewDB(sqlDB)
+	db, err := db.NewDB(sqlDB, os.Getenv("DB_DRIVER"))
 	if err != nil {
 		log.Fatalln("could not initialise db:", err)
 	}
