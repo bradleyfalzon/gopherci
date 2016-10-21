@@ -33,6 +33,9 @@ type FileSystem struct {
 	copath string
 }
 
+// Ensure FileSystem implements Analyser
+var _ Analyser = (*FileSystem)(nil)
+
 func NewFileSystem(gopath string) (*FileSystem, error) {
 	fs := &FileSystem{
 		gopath: gopath,
