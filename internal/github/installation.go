@@ -20,7 +20,7 @@ type Installation struct {
 func (g *GitHub) NewInstallation(accountID int) (*Installation, error) {
 
 	// TODO reuse installations, so we maintain rate limit state between webhooks
-	dbInstallation, err := g.db.GHFindInstallation(accountID)
+	dbInstallation, err := g.db.FindGHInstallation(accountID)
 	if err != nil {
 		return nil, err
 	}

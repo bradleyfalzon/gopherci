@@ -3,7 +3,6 @@ package github
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -56,8 +55,6 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 	//return
 	//}
 
-	fmt.Println(string(body))
-
 	event, err := github.ParseWebHook(github.WebHookType(r), body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -68,13 +65,13 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch e := event.(type) {
 	case *github.IntegrationInstallationEvent:
+		log.Printf("integration event: %v, installation id: %v, on account %v, by account %v",
+			*e.Action, *e.Installation.ID, *e.Installation.Account.Login, *e.Sender.Login,
+		)
 		switch *e.Action {
 		case "created":
 			// Record the installation event in the database
-			log.Printf("integration installation, installation id: %v, on account %v, by account %v",
-				*e.Installation.ID, *e.Installation.Account.Login, *e.Sender.Login,
-			)
-			err := g.db.GHAddInstallation(*e.Installation.ID, *e.Installation.Account.ID)
+			err := g.db.AddGHInstallation(*e.Installation.ID, *e.Installation.Account.ID)
 			if err != nil {
 				log.Println(errors.Wrap(err, "could not insert installation into database"))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -82,18 +79,12 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		case "deleted":
 			// Remove the installation event from the database
-			log.Printf("integration removal, installation id: %v, on account %v, by account %v",
-				*e.Installation.ID, *e.Installation.Account.Login, *e.Sender.Login,
-			)
-			err := g.db.GHRemoveInstallation(*e.Installation.ID, *e.Installation.Account.ID)
+			err := g.db.RemoveGHInstallation(*e.Installation.Account.ID)
 			if err != nil {
 				log.Println(errors.Wrap(err, "could not delete installation from database"))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
-		default:
-			log.Printf("ignoring integration installation event action: %q", *e.Action)
-			break
 		}
 	case *github.PullRequestEvent:
 		if e.Action == nil || *e.Action != "opened" {

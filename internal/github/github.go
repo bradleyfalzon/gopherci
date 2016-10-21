@@ -24,7 +24,7 @@ const (
 
 // GitHub is the type gopherci uses to interract with github.com.
 type GitHub struct {
-	db            *db.DB
+	db            db.DB
 	analyser      analyser.Analyser
 	integrationID int               // id is the integration id
 	keyFile       string            // keyFile is the path to private key
@@ -35,7 +35,7 @@ type GitHub struct {
 // https://developer.github.com/changes/2016-09-14-Integrations-Early-Access/
 // integrationID is the GitHub Integration ID (not installation ID), keyFile is the path to the
 // private key provided to you by GitHub during the integration registration.
-func New(analyser analyser.Analyser, db *db.DB, integrationID, keyFile string) (*GitHub, error) {
+func New(analyser analyser.Analyser, db db.DB, integrationID, keyFile string) (*GitHub, error) {
 	iid, err := strconv.ParseInt(integrationID, 10, 64)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not parse integrationID")
