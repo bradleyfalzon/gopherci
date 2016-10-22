@@ -16,14 +16,12 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 )
 
-func init() {
+func main() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file:", err)
 	}
-}
 
-func main() {
 	switch {
 	case os.Getenv("GITHUB_ID") == "":
 		log.Fatalln("GITHUB_ID is not set")
