@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestMemDB(t *testing.T) {
-	db := NewMemDB()
+func TestMockDB(t *testing.T) {
+	db := NewMockDB()
 
 	const (
 		accountID      = 1
@@ -44,5 +44,4 @@ func TestMemDB(t *testing.T) {
 	if installation != nil {
 		t.Fatal("expected nil, got:", installation)
 	}
-
 }

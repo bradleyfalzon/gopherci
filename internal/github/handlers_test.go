@@ -14,8 +14,8 @@ import (
 	"github.com/google/go-github/github"
 )
 
-func setup(t *testing.T) (*GitHub, *analyser.MockAnalyser, *db.MemDB) {
-	memDB := db.NewMemDB()
+func setup(t *testing.T) (*GitHub, *analyser.MockAnalyser, *db.MockDB) {
+	memDB := db.NewMockDB()
 	mockAnalyser := &analyser.MockAnalyser{}
 
 	// New GitHub
