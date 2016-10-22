@@ -3,7 +3,7 @@ package analyser
 // Analyser analyses a repository and branch, returns issues found in patch
 // or an error.
 type Analyser interface {
-	Analyse(repoURL, branch, patchURL string) ([]Issue, error)
+	Analyse(repoURL, branch, diffURL string) ([]Issue, error)
 }
 
 // Issue contains file, position and string describing a single issue.

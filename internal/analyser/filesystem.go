@@ -49,11 +49,11 @@ func NewFileSystem(gopath string) (*FileSystem, error) {
 }
 
 // Analyse implements Analyser interface
-func (fs *FileSystem) Analyse(repoURL, branch, patchURL string) ([]Issue, error) {
-	log.Printf("fs.Analyse repoURL %q branch %q pathURL %q GOPATH %q", repoURL, branch, patchURL, fs.gopath)
+func (fs *FileSystem) Analyse(repoURL, branch, diffURL string) ([]Issue, error) {
+	log.Printf("fs.Analyse repoURL %q branch %q diffURL %q GOPATH %q", repoURL, branch, diffURL, fs.gopath)
 
 	// download patch
-	patch, err := http.Get(patchURL)
+	patch, err := http.Get(diffURL)
 	if err != nil {
 		return nil, err
 	}

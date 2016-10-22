@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/google/go-github/github"
@@ -30,9 +31,14 @@ func (g *GitHub) NewInstallation(accountID int) (*Installation, error) {
 
 	log.Printf("found installation: %+v", dbInstallation)
 	itr := g.newInstallationTransport(dbInstallation.InstallationID)
-	client := &http.Client{Transport: itr}
+	client := github.NewClient(&http.Client{Transport: itr})
 
-	return &Installation{client: github.NewClient(client)}, nil
+	// Allow overwriting of baseURL for tests
+	if client.BaseURL, err = url.Parse(g.baseURL); err != nil {
+		return nil, err
+	}
+
+	return &Installation{client: client}, nil
 }
 
 type StatusState string

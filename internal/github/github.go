@@ -29,6 +29,7 @@ type GitHub struct {
 	integrationID int               // id is the integration id
 	keyFile       string            // keyFile is the path to private key
 	tr            http.RoundTripper // tr is a transport shared by all installations to reuse http connections
+	baseURL       string            // baseURL for GitHub API
 }
 
 // New returns a GitHub object for use with GitHub integrations
@@ -47,6 +48,7 @@ func New(analyser analyser.Analyser, db db.DB, integrationID, keyFile string) (*
 		integrationID: int(iid),
 		keyFile:       keyFile,
 		tr:            http.DefaultTransport,
+		baseURL:       "https://api.github.com",
 	}
 
 	// TODO some prechecks should be done now, instead of later, fail fast/early.
@@ -61,6 +63,7 @@ func New(analyser analyser.Analyser, db db.DB, integrationID, keyFile string) (*
 //
 // See https://developer.github.com/early-access/integrations/authentication/#as-an-installation
 type installationTransport struct {
+	baseURL        string            // baseURL for GitHub API
 	tr             http.RoundTripper // tr is the underlying roundtripper being wrapped
 	keyFile        string            // keyFile is the path to GitHub Intregration's PEM encoded private key
 	integrationID  int               // integrationID is the GitHub Integration's Installation ID
@@ -76,6 +79,7 @@ type accessToken struct {
 
 func (g *GitHub) newInstallationTransport(installationID int) *installationTransport {
 	return &installationTransport{
+		baseURL:        g.baseURL,
 		tr:             g.tr,
 		keyFile:        g.keyFile,
 		integrationID:  g.integrationID,
@@ -127,7 +131,7 @@ func (t *installationTransport) refreshToken() error {
 		return errors.Wrap(err, "could not sign jwt")
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://api.github.com/installations/%v/access_tokens", t.installationID), nil)
+	req, err := http.NewRequest("POST", fmt.Sprintf("%v/installations/%v/access_tokens", t.baseURL, t.installationID), nil)
 	if err != nil {
 		return errors.Wrap(err, "could not create request")
 	}
@@ -146,7 +150,7 @@ func (t *installationTransport) refreshToken() error {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&t.token); err != nil {
-		return err
+		return errors.Wrap(err, "could not decode json response from access_tokens")
 	}
 
 	return nil

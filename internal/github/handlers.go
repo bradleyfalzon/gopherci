@@ -1,6 +1,7 @@
 package github
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -36,15 +37,22 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("parsed webhook event: %T", event)
 
-	switch e := event.(type) {
-	case *github.IntegrationInstallationEvent:
-		go g.integrationInstallationEvent(e)
-	case *github.PullRequestEvent:
-		go g.pullRequestEvent(e)
-	}
+	// process hook in background
+	go func() {
+		var err error
+		switch e := event.(type) {
+		case *github.IntegrationInstallationEvent:
+			err = g.integrationInstallationEvent(e)
+		case *github.PullRequestEvent:
+			err = g.pullRequestEvent(e)
+		}
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 }
 
-func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationEvent) {
+func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationEvent) error {
 	log.Printf("integration event: %v, installation id: %v, on account %v, by account %v",
 		*e.Action, *e.Installation.ID, *e.Installation.Account.Login, *e.Sender.Login,
 	)
@@ -58,53 +66,49 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 		err = g.db.RemoveGHInstallation(*e.Installation.Account.ID)
 	}
 	if err != nil {
-		log.Println(errors.Wrap(err, "database error handling integration installation event"))
+		return errors.Wrap(err, "database error handling integration installation event")
 	}
+	return nil
 }
 
-func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) {
+func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 	if e.Action == nil || *e.Action != "opened" {
-		log.Printf("ignoring PR #%v action: %q", *e.Number, *e.Action)
-		return
+		return fmt.Errorf("ignoring PR #%v action: %q", *e.Number, *e.Action)
 	}
 	if e.Repo == nil || e.PullRequest == nil {
-		log.Printf("malformed PR webhook, no repo or pullrequest set")
-		return
+		return fmt.Errorf("malformed PR webhook, no repo or pullrequest set")
 	}
 	pr := e.PullRequest
 
 	// Lookup installation
 	install, err := g.NewInstallation(*e.Repo.Owner.ID)
 	if err != nil {
-		log.Println(errors.Wrap(err, "error getting installation"))
-		return
+		return errors.Wrap(err, "error getting installation")
 	}
 	if install == nil {
-		log.Println("could not find installation")
-		return
+		return errors.New("could not find installation")
 	}
 
 	// Set the CI status API to pending
 	err = install.SetStatus(*pr.StatusesURL, StatusStatePending)
 	if err != nil {
-		log.Printf("could not set status to pending for %v: %v", *pr.StatusesURL, err)
-		return
+		return errors.Wrap(err, fmt.Sprintf("could not set status to pending for %v", *pr.StatusesURL))
 	}
 
 	// Analyse
 	issues, err := g.analyser.Analyse(*pr.Head.Repo.CloneURL, *pr.Head.Ref, *pr.DiffURL)
 	if err != nil {
-		log.Printf("could not analyse %v pr %v: %v", *e.Repo.URL, *e.Number, err)
-		return
+		// Set Status ?
+		return errors.Wrap(err, fmt.Sprintf("could not analyse %v pr %v", *e.Repo.URL, *e.Number))
 	}
 
 	// Post issues as comments on github pr
-	install.WriteIssues(*pr.Number, *pr.Head.SHA, issues)
+	install.WriteIssues(*e.Number, *pr.Head.SHA, issues)
 
 	// Set the CI status API to success
 	err = install.SetStatus(*pr.StatusesURL, StatusStateSuccess)
 	if err != nil {
-		log.Printf("could not set status to success for %v: %v", *pr.StatusesURL, err)
-		return
+		return errors.Wrap(err, fmt.Sprintf("could not set status to success for %v", *pr.StatusesURL))
 	}
+	return nil
 }
