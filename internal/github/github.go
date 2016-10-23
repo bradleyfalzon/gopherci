@@ -1,9 +1,7 @@
 package github
 
 import (
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -115,13 +113,7 @@ func (t *installationTransport) refreshToken() error {
 		return errors.Wrap(err, "could not read private key")
 	}
 
-	// discard extra bytes in the file, we only care about the key
-	block, _ := pem.Decode(key)
-	if block == nil {
-		return errors.New("could not decode pem private key")
-	}
-
-	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(key)
 	if err != nil {
 		return errors.Wrap(err, "could not parse private key")
 	}
