@@ -9,11 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
-	"time"
 
 	"github.com/bradleyfalzon/revgrep"
-	"github.com/pkg/errors"
 )
 
 // FileSystem analyses a repository and patch for issues using the file
@@ -31,6 +28,9 @@ type FileSystem struct {
 	// copath specifies the base checkout path used, a temp folder name is created
 	// within here to avoid race conditions with other threads.
 	copath string
+
+	// executer executes commands and other file system operations
+	executer executer
 }
 
 // Ensure FileSystem implements Analyser
@@ -38,7 +38,8 @@ var _ Analyser = (*FileSystem)(nil)
 
 func NewFileSystem(gopath string) (*FileSystem, error) {
 	fs := &FileSystem{
-		gopath: gopath,
+		gopath:   gopath,
+		executer: fsExecuter{},
 	}
 
 	// TODO check if gopath exists, and directory structure exists mkdirs if not
@@ -60,7 +61,7 @@ func (fs *FileSystem) Analyse(repoURL, branch, diffURL string) ([]Issue, error) 
 	defer patch.Body.Close()
 
 	// make temp dir
-	tmpdir, err := fs.mktemp()
+	tmpdir, err := fs.executer.Mktemp(filepath.Join(fs.gopath, "src", "gopherci"))
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (fs *FileSystem) Analyse(repoURL, branch, diffURL string) ([]Issue, error) 
 	// TODO check out https://godoc.org/golang.org/x/tools/go/vcs to be agnostic
 	cmd := exec.Command("git", "clone", "--branch", branch, "--depth", "0", "--single-branch", repoURL, tmpdir)
 	log.Printf("path: %v %v, dir: %v, env: %v", cmd.Path, cmd.Args, cmd.Dir, cmd.Env)
-	out, err := cmd.CombinedOutput()
+	out, err := fs.executer.CombinedOutput(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("could not %v %v: %s\n%s", cmd.Path, cmd.Args, err, out)
 	}
@@ -84,29 +85,24 @@ func (fs *FileSystem) Analyse(repoURL, branch, diffURL string) ([]Issue, error) 
 
 	// fetch dependencies, some static analysis tools require building a project
 
-	// allIssues is output from static analysis tools
-	var allIssues bytes.Buffer
-
 	// run go vet
 	// TODO expand this to have a user configurable amount of tools/libraries
 	cmd = exec.Command("go", "vet", "./...")
 	cmd.Env = []string{"GOPATH=" + fs.gopath}
 	cmd.Dir = tmpdir
-	cmd.Stderr = &allIssues
-	cmd.Stdout = &allIssues
 	log.Printf("path: %v %v, dir: %v, env: %v", cmd.Path, cmd.Args, cmd.Dir, cmd.Env)
 	// ignore errors, often it's about the exit status
 	// TODO check these errors better, other static analysis tools check the code
 	// explicitly or at least don't ignore it
-	_ = cmd.Run()
-	log.Println("go vet output:", allIssues.String())
+	allIssues, _ := fs.executer.CombinedOutput(cmd)
+	log.Println("go vet output:", string(allIssues))
 
 	checker := revgrep.Checker{
 		Patch: patch.Body,
 		Debug: os.Stdout,
 	}
 
-	revIssues, err := checker.Check(&allIssues, ioutil.Discard)
+	revIssues, err := checker.Check(bytes.NewReader(allIssues), ioutil.Discard)
 	if err != nil {
 		return nil, err
 	}
@@ -122,15 +118,4 @@ func (fs *FileSystem) Analyse(repoURL, branch, diffURL string) ([]Issue, error) 
 	}
 
 	return issues, nil
-}
-
-// mktemp makes a random and temporary directory within GOPATH/src/gopherci
-func (fs *FileSystem) mktemp() (string, error) {
-	rand := strconv.Itoa(int(time.Now().UnixNano()))
-	dir := filepath.Join(fs.gopath, "src", "gopherci", rand)
-	log.Println("mktemp:", dir)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", errors.Wrap(err, "mktemp cannot mkdir")
-	}
-	return dir, nil
 }
