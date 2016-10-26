@@ -30,7 +30,10 @@ func (g *GitHub) NewInstallation(accountID int) (*Installation, error) {
 	}
 
 	log.Printf("found installation: %+v", dbInstallation)
-	itr := g.newInstallationTransport(dbInstallation.InstallationID)
+	itr, err := g.newInstallationTransport(dbInstallation.InstallationID)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("could not initialise transport for installation id %v", dbInstallation.InstallationID))
+	}
 	client := github.NewClient(&http.Client{Transport: itr})
 
 	// Allow overwriting of baseURL for tests
