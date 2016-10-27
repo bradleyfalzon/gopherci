@@ -11,7 +11,6 @@ import (
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
-	"github.com/bradleyfalzon/installationTransport"
 	"github.com/google/go-github/github"
 )
 
@@ -114,8 +113,7 @@ func TestPullRequestEvent(t *testing.T) {
 			}
 		case "/installations/2/access_tokens":
 			// respond with any token to installation transport
-			js, _ := json.Marshal(installationTransport.AccessToken{})
-			fmt.Fprintln(w, string(js))
+			fmt.Fprintln(w, "{}")
 		case "/repos/bf-test/gopherci-dev1/pulls/1/comments":
 			expected := github.PullRequestComment{
 				Body:     github.String(expectedCmtBody),
