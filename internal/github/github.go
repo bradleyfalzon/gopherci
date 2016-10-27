@@ -6,9 +6,9 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
-	"github.com/bradleyfalzon/installationTransport"
 )
 
 const (
@@ -50,8 +50,8 @@ func New(analyser analyser.Analyser, db db.DB, integrationID, keyFile string) (*
 	return g, nil
 }
 
-func (g *GitHub) newInstallationTransport(installationID int) (*installationTransport.InstallationTransport, error) {
-	tr, err := installationTransport.NewKeyFromFile(g.tr, g.integrationID, installationID, g.keyFile)
+func (g *GitHub) newInstallationTransport(installationID int) (*ghinstallation.Transport, error) {
+	tr, err := ghinstallation.NewKeyFromFile(g.tr, g.integrationID, installationID, g.keyFile)
 	if err != nil {
 		return nil, err
 	}
