@@ -3,9 +3,11 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
@@ -70,8 +72,18 @@ func main() {
 	}
 
 	// GitHub
-	log.Printf("GitHub ID: %q, GitHub PEM File: %q", os.Getenv("GITHUB_ID"), os.Getenv("GITHUB_PEM_FILE"))
-	gh, err := github.New(fs, db, os.Getenv("GITHUB_ID"), os.Getenv("GITHUB_PEM_FILE"))
+	log.Printf("GitHub Integration ID: %q, GitHub Integration PEM File: %q", os.Getenv("GITHUB_ID"), os.Getenv("GITHUB_PEM_FILE"))
+	integrationID, err := strconv.ParseInt(os.Getenv("GITHUB_ID"), 10, 64)
+	if err != nil {
+		log.Fatalf("could not parse integrationID %q", os.Getenv("GITHUB_ID"))
+	}
+
+	integrationKey, err := ioutil.ReadFile(os.Getenv("GITHUB_PEM_FILE"))
+	if err != nil {
+		log.Fatalf("could not read private key for GitHub integration: %s", err)
+	}
+
+	gh, err := github.New(fs, db, int(integrationID), integrationKey)
 	if err != nil {
 		log.Fatalln("could not initialise GitHub:", err)
 	}
