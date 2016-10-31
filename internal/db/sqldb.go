@@ -43,3 +43,12 @@ func (db *SQLDB) FindGHInstallation(accountID int) (*GHInstallation, error) {
 	err := db.sqlx.Get(&installation, "SELECT id, installation_id, account_id FROM gh_installations WHERE account_id = ?", accountID)
 	return &installation, err
 }
+
+func (db *SQLDB) ListTools() ([]Tool, error) {
+	// TODO actually read from database
+	return []Tool{
+		{1, "go vet", "https://golang.org/cmd/vet/", "go", "vet ./...", "", ""},
+		{2, "golint", "https://github.com/golang/lint", "golint", "./...", "", ""},
+		{3, "apicompat", "https://github.com/bradleyfalzon/apicompat", "apicompat", "./...", "-before", `.*?:(.*?\.go):([0-9]+):()(.*)`},
+	}, nil
+}

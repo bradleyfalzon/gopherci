@@ -7,13 +7,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/pkg/errors"
 )
 
 // Analyser analyses a repository and branch, returns issues found in patch
 // or an error.
 type Analyser interface {
-	Analyse(repoURL, branch, diffURL string) ([]Issue, error)
+	Analyse(tools []db.Tool, repoURL, branch, diffURL string) ([]Issue, error)
 }
 
 // Issue contains file, position and string describing a single issue.
@@ -30,6 +31,8 @@ type Issue struct {
 type executer interface {
 	// CombinedOutput executes CombinedOutput on provided cmd.
 	CombinedOutput(*exec.Cmd) ([]byte, error)
+	// Run executes Run on provded cmd.
+	Run(*exec.Cmd) error
 	// Mktemp makes and returns full path to a random directory inside absolute path base.
 	Mktemp(string) (string, error)
 }
@@ -42,6 +45,11 @@ var _ executer = (*fsExecuter)(nil)
 // CombinedOutput implements executer interface
 func (fsExecuter) CombinedOutput(cmd *exec.Cmd) ([]byte, error) {
 	return cmd.CombinedOutput()
+}
+
+// Run implements executer interface
+func (fsExecuter) Run(cmd *exec.Cmd) error {
+	return cmd.Run()
 }
 
 // Mktemp implements executer interface

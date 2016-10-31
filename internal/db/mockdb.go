@@ -40,3 +40,8 @@ func (db *MockDB) FindGHInstallation(accountID int) (*GHInstallation, error) {
 	}
 	return nil, db.err
 }
+
+// ListTools implements DB interface
+func (db *MockDB) ListTools() ([]Tool, error) {
+	return nil, nil
+}

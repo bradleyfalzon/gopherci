@@ -89,14 +89,22 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 		return errors.New("could not find installation")
 	}
 
+	// Find tools for this repo
+	tools, err := g.db.ListTools()
+	if err != nil {
+		return errors.Wrap(err, "could not get tools")
+	}
+
 	// Set the CI status API to pending
 	err = install.SetStatus(*pr.StatusesURL, StatusStatePending)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("could not set status to pending for %v", *pr.StatusesURL))
 	}
 
+	log.Printf("base label: %v, ref: %v, sha: %v", *pr.Base.Label, *pr.Base.Ref, *pr.Base.SHA)
+
 	// Analyse
-	issues, err := g.analyser.Analyse(*pr.Head.Repo.CloneURL, *pr.Head.Ref, *pr.DiffURL)
+	issues, err := g.analyser.Analyse(tools, *pr.Head.Repo.CloneURL, *pr.Head.Ref, *pr.DiffURL)
 	if err != nil {
 		// Set Status ?
 		return errors.Wrap(err, fmt.Sprintf("could not analyse %v pr %v", *e.Repo.URL, *e.Number))
