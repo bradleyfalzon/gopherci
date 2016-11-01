@@ -112,11 +112,11 @@ func TestPullRequestEvent(t *testing.T) {
 
 	var (
 		expectedConfig = analyser.Config{
-			BaseRepoURL: "base-repo-url",
-			BaseBranch:  "base-branch",
-			HeadRepoURL: "head-repo-url",
-			HeadBranch:  "head-branch",
-			DiffURL:     "some-diff-url",
+			BaseURL:    "base-repo-url",
+			BaseBranch: "base-branch",
+			HeadURL:    "head-repo-url",
+			HeadBranch: "head-branch",
+			DiffURL:    "some-diff-url",
 		}
 		expectedCmtBody = "some-issue"
 		expectedCmtPath = "main.go"
@@ -187,13 +187,13 @@ func TestPullRequestEvent(t *testing.T) {
 			DiffURL:     github.String(expectedConfig.DiffURL),
 			Base: &github.PullRequestBranch{
 				Repo: &github.Repository{
-					CloneURL: github.String(expectedConfig.BaseRepoURL),
+					CloneURL: github.String(expectedConfig.BaseURL),
 				},
 				Ref: github.String(expectedConfig.BaseBranch),
 			},
 			Head: &github.PullRequestBranch{
 				Repo: &github.Repository{
-					CloneURL: github.String(expectedConfig.HeadRepoURL),
+					CloneURL: github.String(expectedConfig.HeadURL),
 				},
 				SHA: github.String(expectedCmtSHA),
 				Ref: github.String(expectedConfig.HeadBranch),

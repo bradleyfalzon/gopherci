@@ -80,7 +80,7 @@ func (fs *FileSystem) Analyse(tools []db.Tool, config Config) ([]Issue, error) {
 
 	// clone repo
 	// TODO check out https://godoc.org/golang.org/x/tools/go/vcs to be agnostic
-	cmd := exec.Command("git", "clone", "--branch", config.HeadBranch, "--depth", "0", "--single-branch", config.HeadRepoURL, tmpdir)
+	cmd := exec.Command("git", "clone", "--branch", config.HeadBranch, "--depth", "0", "--single-branch", config.HeadURL, tmpdir)
 	log.Printf("path: %v %v, dir: %v, env: %v", cmd.Path, cmd.Args, cmd.Dir, cmd.Env)
 	out, err := fs.executer.CombinedOutput(cmd)
 	if err != nil {
@@ -90,7 +90,7 @@ func (fs *FileSystem) Analyse(tools []db.Tool, config Config) ([]Issue, error) {
 	log.Println("clone success to:", tmpdir)
 
 	// fetch base/upstream as some tools (apicompat) needs it
-	cmd = exec.Command("git", "fetch", config.BaseRepoURL, config.BaseBranch)
+	cmd = exec.Command("git", "fetch", config.BaseURL, config.BaseBranch)
 	cmd.Dir = tmpdir
 	out, err = fs.executer.CombinedOutput(cmd)
 	if err != nil {

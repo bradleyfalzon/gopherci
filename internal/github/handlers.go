@@ -104,11 +104,11 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 
 	// Analyse
 	config := analyser.Config{
-		BaseRepoURL: *pr.Base.Repo.CloneURL,
-		BaseBranch:  *pr.Base.Ref,
-		HeadRepoURL: *pr.Head.Repo.CloneURL,
-		HeadBranch:  *pr.Head.Ref,
-		DiffURL:     *pr.DiffURL,
+		BaseURL:    *pr.Base.Repo.CloneURL,
+		BaseBranch: *pr.Base.Ref,
+		HeadURL:    *pr.Head.Repo.CloneURL,
+		HeadBranch: *pr.Head.Ref,
+		DiffURL:    *pr.DiffURL,
 	}
 
 	issues, err := g.analyser.Analyse(tools, config)

@@ -25,12 +25,12 @@ type Analyser interface {
 // Config hold configuration options for use in analyser. All options
 // are required.
 type Config struct {
-	// BaseRepoURL is the VCS fetchable base repo URL.
-	BaseRepoURL string
+	// BaseURL is the VCS fetchable base repo URL.
+	BaseURL string
 	// BaseBranch is the branch we want to merge into.
 	BaseBranch string
-	// HeadRepoURL is the VCS fetchable repo URL containing the changes to be merged.
-	HeadRepoURL string
+	// HeadURL is the VCS fetchable repo URL containing the changes to be merged.
+	HeadURL string
 	// HeadBranch is the name of the branch containing changes.
 	HeadBranch string
 	// DiffURL is the URL containing the unified diff of the changes.

@@ -55,11 +55,11 @@ index 0000000..6362395
 	defer ts.Close()
 
 	cfg := Config{
-		BaseRepoURL: "base-url",
-		BaseBranch:  "base-branch",
-		HeadRepoURL: "head-url",
-		HeadBranch:  "head-branch",
-		DiffURL:     ts.URL,
+		BaseURL:    "base-url",
+		BaseBranch: "base-branch",
+		HeadURL:    "head-url",
+		HeadBranch: "head-branch",
+		DiffURL:    ts.URL,
 	}
 
 	tools := []db.Tool{
@@ -69,8 +69,8 @@ index 0000000..6362395
 	executer := &mockExecuter{
 		t: t,
 		coArgsIn: [][]string{
-			{"git", "clone", "--branch", cfg.HeadBranch, "--depth", "0", "--single-branch", cfg.HeadRepoURL, "/tmp/src/gopherci/rand"},
-			{"git", "fetch", cfg.BaseRepoURL, cfg.BaseBranch},
+			{"git", "clone", "--branch", cfg.HeadBranch, "--depth", "0", "--single-branch", cfg.HeadURL, "/tmp/src/gopherci/rand"},
+			{"git", "fetch", cfg.BaseURL, cfg.BaseBranch},
 			{"tool", "-flag", "FETCH_HEAD", "./..."},
 		},
 		coOut: [][]byte{{}, {}, []byte(`main.go:1: error`)},
