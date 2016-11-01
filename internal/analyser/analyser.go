@@ -11,6 +11,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// ArgBaseBranch replaces tool arg with the name of the base branch
+	ArgBaseBranch = "%BASE_BRANCH%"
+)
+
 // Analyser analyses a repository and branch, returns issues found in patch
 // or an error.
 type Analyser interface {

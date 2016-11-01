@@ -63,7 +63,7 @@ index 0000000..6362395
 	}
 
 	tools := []db.Tool{
-		{Name: "Name", Path: "tool", Args: "arg", ArgBaseSHA: "-flag"},
+		{Name: "Name", Path: "tool", Args: "-flag %BASE_BRANCH% ./..."},
 	}
 
 	executer := &mockExecuter{
@@ -71,7 +71,7 @@ index 0000000..6362395
 		coArgsIn: [][]string{
 			{"git", "clone", "--branch", cfg.HeadBranch, "--depth", "0", "--single-branch", cfg.HeadRepoURL, "/tmp/src/gopherci/rand"},
 			{"git", "fetch", cfg.BaseRepoURL, cfg.BaseBranch},
-			{"tool", "-flag", "FETCH_HEAD", "arg"},
+			{"tool", "-flag", "FETCH_HEAD", "./..."},
 		},
 		coOut: [][]byte{{}, {}, []byte(`main.go:1: error`)},
 	}

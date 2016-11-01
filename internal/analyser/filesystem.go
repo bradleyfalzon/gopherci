@@ -103,11 +103,14 @@ func (fs *FileSystem) Analyse(tools []db.Tool, config Config) ([]Issue, error) {
 	var issues []Issue
 	for _, tool := range tools {
 		cmd := exec.Command(tool.Path)
-		if tool.ArgBaseSHA != "" {
-			// Tool wants the base branch name as a flag
-			cmd.Args = append(cmd.Args, []string{tool.ArgBaseSHA, "FETCH_HEAD"}...)
+		for _, arg := range strings.Fields(tool.Args) {
+			switch arg {
+			case ArgBaseBranch:
+				// Tool wants the base branch name as a flag
+				arg = "FETCH_HEAD"
+			}
+			cmd.Args = append(cmd.Args, arg)
 		}
-		cmd.Args = append(cmd.Args, strings.Fields(tool.Args)...)
 		cmd.Env = []string{"GOPATH=" + fs.gopath, "PATH=" + os.Getenv("PATH")}
 		cmd.Dir = tmpdir
 		log.Printf("tool: %v, path: %v %v, dir: %v, env: %v", tool.Name, cmd.Path, cmd.Args, cmd.Dir, cmd.Env)

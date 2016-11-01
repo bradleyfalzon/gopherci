@@ -22,16 +22,10 @@ type GHInstallation struct {
 
 // Tool represents a single tool
 type Tool struct {
-	ID         int    `db:"id"`
-	Name       string `db:"name"`
-	URL        string `db:"url"`
-	Path       string `db:"path"`
-	Args       string `db:"args"`
-	ArgBaseSHA string `db:"argBaseSha"`
-	Regexp     string `db:"regexp"`
+	ID     int    `db:"id"`
+	Name   string `db:"name"`
+	URL    string `db:"url"`
+	Path   string `db:"path"`
+	Args   string `db:"args"`
+	Regexp string `db:"regexp"`
 }
-
-//
-//type ToolArg struct {
-
-//}
