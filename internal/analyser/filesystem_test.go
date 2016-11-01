@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/bradleyfalzon/gopherci/internal/db"
 )
 
 // mockExecuter is a poor implementation of mock object and really should
@@ -52,13 +54,26 @@ index 0000000..6362395
 	}))
 	defer ts.Close()
 
+	cfg := Config{
+		BaseRepoURL: "base-url",
+		BaseBranch:  "base-branch",
+		HeadRepoURL: "head-url",
+		HeadBranch:  "head-branch",
+		DiffURL:     ts.URL,
+	}
+
+	tools := []db.Tool{
+		{Name: "Name", Path: "tool", Args: "arg", ArgBaseSHA: "-flag"},
+	}
+
 	executer := &mockExecuter{
 		t: t,
 		coArgsIn: [][]string{
-			{"git", "clone", "--branch", "some-branch", "--depth", "0", "--single-branch", "repo-url", "/tmp/src/gopherci/rand"},
-			{"go", "vet", "./..."},
+			{"git", "clone", "--branch", cfg.HeadBranch, "--depth", "0", "--single-branch", cfg.HeadRepoURL, "/tmp/src/gopherci/rand"},
+			{"git", "fetch", cfg.BaseRepoURL, cfg.BaseBranch},
+			{"tool", "-flag", "FETCH_HEAD", "arg"},
 		},
-		coOut: [][]byte{{}, []byte(`main.go:1: error`)},
+		coOut: [][]byte{{}, {}, []byte(`main.go:1: error`)},
 	}
 
 	fs, err := NewFileSystem("/tmp")
@@ -67,13 +82,13 @@ index 0000000..6362395
 	}
 	fs.executer = executer
 
-	issues, err := fs.Analyse("repo-url", "some-branch", ts.URL)
+	issues, err := fs.Analyse(tools, cfg)
 
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
 
-	expected := []Issue{{File: "main.go", HunkPos: 1, Issue: "main.go:1: error"}}
+	expected := []Issue{{File: "main.go", HunkPos: 1, Issue: "Name: error"}}
 	if !reflect.DeepEqual(expected, issues) {
 		t.Errorf("expected issues:\n%+v\ngot:\n%+v", expected, issues)
 	}

@@ -46,8 +46,6 @@ type Issue struct {
 type executer interface {
 	// CombinedOutput executes CombinedOutput on provided cmd.
 	CombinedOutput(*exec.Cmd) ([]byte, error)
-	// Run executes Run on provded cmd.
-	Run(*exec.Cmd) error
 	// Mktemp makes and returns full path to a random directory inside absolute path base.
 	Mktemp(string) (string, error)
 }

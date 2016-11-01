@@ -102,8 +102,6 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 		return errors.Wrap(err, fmt.Sprintf("could not set status to pending for %v", *pr.StatusesURL))
 	}
 
-	log.Printf("base label: %v, ref: %v, sha: %v", *pr.Base.Label, *pr.Base.Ref, *pr.Base.SHA)
-
 	// Analyse
 	config := analyser.Config{
 		BaseRepoURL: *pr.Base.Repo.CloneURL,
