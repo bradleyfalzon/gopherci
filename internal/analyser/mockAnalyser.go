@@ -4,10 +4,8 @@ import "github.com/bradleyfalzon/gopherci/internal/db"
 
 // MockAnalyser is an analyser that does nothing, used for testing.
 type MockAnalyser struct {
-	Tools []db.Tool
-	RepoURL,
-	Branch,
-	DiffURL string
+	Tools  []db.Tool
+	Config Config
 	Issues []Issue
 	Err    error
 }
@@ -16,10 +14,8 @@ type MockAnalyser struct {
 var _ Analyser = (*MockAnalyser)(nil)
 
 // Analyse implements Analyser interface
-func (m *MockAnalyser) Analyse(tools []db.Tool, repoURL, branch, diffURL string) ([]Issue, error) {
+func (m *MockAnalyser) Analyse(tools []db.Tool, config Config) ([]Issue, error) {
 	m.Tools = tools
-	m.RepoURL = repoURL
-	m.Branch = branch
-	m.DiffURL = diffURL
+	m.Config = config
 	return m.Issues, m.Err
 }

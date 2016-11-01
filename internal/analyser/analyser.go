@@ -14,7 +14,22 @@ import (
 // Analyser analyses a repository and branch, returns issues found in patch
 // or an error.
 type Analyser interface {
-	Analyse(tools []db.Tool, repoURL, branch, diffURL string) ([]Issue, error)
+	Analyse(tools []db.Tool, config Config) ([]Issue, error)
+}
+
+// Config hold configuration options for use in analyser. All options
+// are required.
+type Config struct {
+	// BaseRepoURL is the VCS fetchable base repo URL.
+	BaseRepoURL string
+	// BaseBranch is the branch we want to merge into.
+	BaseBranch string
+	// HeadRepoURL is the VCS fetchable repo URL containing the changes to be merged.
+	HeadRepoURL string
+	// HeadBranch is the name of the branch containing changes.
+	HeadBranch string
+	// DiffURL is the URL containing the unified diff of the changes.
+	DiffURL string
 }
 
 // Issue contains file, position and string describing a single issue.

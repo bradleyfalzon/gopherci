@@ -53,18 +53,18 @@ func NewFileSystem(gopath string) (*FileSystem, error) {
 }
 
 // Analyse implements Analyser interface
-func (fs *FileSystem) Analyse(tools []db.Tool, repoURL, branch, diffURL string) ([]Issue, error) {
-	log.Printf("fs.Analyse repoURL %q branch %q diffURL %q GOPATH %q", repoURL, branch, diffURL, fs.gopath)
+func (fs *FileSystem) Analyse(tools []db.Tool, config Config) ([]Issue, error) {
+	log.Printf("fs.Analyse %#v GOPATH %q", config, fs.gopath)
 
 	// download patch
-	resp, err := http.Get(diffURL)
+	resp, err := http.Get(config.DiffURL)
 	if err != nil {
 		return nil, err
 	}
 	patch, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		return nil, errors.Wrap(err, "could not ioutil.ReadAll response from"+diffURL)
+		return nil, errors.Wrap(err, "could not ioutil.ReadAll response from"+config.DiffURL)
 	}
 
 	// make temp dir
@@ -80,21 +80,33 @@ func (fs *FileSystem) Analyse(tools []db.Tool, repoURL, branch, diffURL string) 
 
 	// clone repo
 	// TODO check out https://godoc.org/golang.org/x/tools/go/vcs to be agnostic
-	cmd := exec.Command("git", "clone", "--branch", branch, "--depth", "0", "--single-branch", repoURL, tmpdir)
+	cmd := exec.Command("git", "clone", "--branch", config.HeadBranch, "--depth", "0", "--single-branch", config.HeadRepoURL, tmpdir)
 	log.Printf("path: %v %v, dir: %v, env: %v", cmd.Path, cmd.Args, cmd.Dir, cmd.Env)
 	out, err := fs.executer.CombinedOutput(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("could not %v %v: %s\n%s", cmd.Path, cmd.Args, err, out)
 	}
 	//defer os.RemoveAll(tmpdir)
-
 	log.Println("clone success to:", tmpdir)
+
+	// fetch base/upstream as some tools (apicompat) needs it
+	cmd = exec.Command("git", "fetch", config.BaseRepoURL, config.BaseBranch)
+	cmd.Dir = tmpdir
+	out, err = fs.executer.CombinedOutput(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("could not %v %v: %s\n%s", cmd.Path, cmd.Args, err, out)
+	}
+	log.Println("fetch base success")
 
 	// fetch dependencies, some static analysis tools require building a project
 
 	var issues []Issue
 	for _, tool := range tools {
 		cmd := exec.Command(tool.Path)
+		if tool.ArgBaseSHA != "" {
+			// Tool wants the base branch name as a flag
+			cmd.Args = append(cmd.Args, []string{tool.ArgBaseSHA, "FETCH_HEAD"}...)
+		}
 		cmd.Args = append(cmd.Args, strings.Fields(tool.Args)...)
 		cmd.Env = []string{"GOPATH=" + fs.gopath, "PATH=" + os.Getenv("PATH")}
 		cmd.Dir = tmpdir

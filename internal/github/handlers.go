@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 )
@@ -104,7 +105,15 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 	log.Printf("base label: %v, ref: %v, sha: %v", *pr.Base.Label, *pr.Base.Ref, *pr.Base.SHA)
 
 	// Analyse
-	issues, err := g.analyser.Analyse(tools, *pr.Head.Repo.CloneURL, *pr.Head.Ref, *pr.DiffURL)
+	config := analyser.Config{
+		BaseRepoURL: *pr.Base.Repo.CloneURL,
+		BaseBranch:  *pr.Base.Ref,
+		HeadRepoURL: *pr.Head.Repo.CloneURL,
+		HeadBranch:  *pr.Head.Ref,
+		DiffURL:     *pr.DiffURL,
+	}
+
+	issues, err := g.analyser.Analyse(tools, config)
 	if err != nil {
 		// Set Status ?
 		return errors.Wrap(err, fmt.Sprintf("could not analyse %v pr %v", *e.Repo.URL, *e.Number))
