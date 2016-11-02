@@ -41,14 +41,14 @@ func (db *SQLDB) RemoveGHInstallation(accountID int) error {
 func (db *SQLDB) FindGHInstallation(accountID int) (*GHInstallation, error) {
 	var installation GHInstallation
 	err := db.sqlx.Get(&installation, "SELECT id, installation_id, account_id FROM gh_installations WHERE account_id = ?", accountID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 	return &installation, err
 }
 
 func (db *SQLDB) ListTools() ([]Tool, error) {
-	// TODO actually read from database
-	return []Tool{
-		{1, "go vet", "https://golang.org/cmd/vet/", "go", "vet ./...", ""},
-		{2, "golint", "https://github.com/golang/lint", "golint", "./...", ""},
-		{3, "apicompat", "https://github.com/bradleyfalzon/apicompat", "apicompat", "-before %BASE_BRANCH% ./...", `.*?:(.*?\.go):([0-9]+):()(.*)`},
-	}, nil
+	var tools []Tool
+	err := db.sqlx.Select(&tools, "SELECT name, path, args, `regexp` FROM tools")
+	return tools, err
 }

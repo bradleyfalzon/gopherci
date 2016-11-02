@@ -87,7 +87,7 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 		return errors.Wrap(err, "error getting installation")
 	}
 	if install == nil {
-		return errors.New("could not find installation")
+		return errors.New(fmt.Sprintf("could not find installation for accountID %v", *e.Repo.Owner.ID))
 	}
 
 	// Find tools for this repo
