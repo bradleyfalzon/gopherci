@@ -41,5 +41,14 @@ func (db *SQLDB) RemoveGHInstallation(accountID int) error {
 func (db *SQLDB) FindGHInstallation(accountID int) (*GHInstallation, error) {
 	var installation GHInstallation
 	err := db.sqlx.Get(&installation, "SELECT id, installation_id, account_id FROM gh_installations WHERE account_id = ?", accountID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 	return &installation, err
+}
+
+func (db *SQLDB) ListTools() ([]Tool, error) {
+	var tools []Tool
+	err := db.sqlx.Select(&tools, "SELECT name, path, args, `regexp` FROM tools")
+	return tools, err
 }

@@ -7,13 +7,34 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/pkg/errors"
+)
+
+const (
+	// ArgBaseBranch replaces tool arg with the name of the base branch
+	ArgBaseBranch = "%BASE_BRANCH%"
 )
 
 // Analyser analyses a repository and branch, returns issues found in patch
 // or an error.
 type Analyser interface {
-	Analyse(repoURL, branch, diffURL string) ([]Issue, error)
+	Analyse(tools []db.Tool, config Config) ([]Issue, error)
+}
+
+// Config hold configuration options for use in analyser. All options
+// are required.
+type Config struct {
+	// BaseURL is the VCS fetchable base repo URL.
+	BaseURL string
+	// BaseBranch is the branch we want to merge into.
+	BaseBranch string
+	// HeadURL is the VCS fetchable repo URL containing the changes to be merged.
+	HeadURL string
+	// HeadBranch is the name of the branch containing changes.
+	HeadBranch string
+	// DiffURL is the URL containing the unified diff of the changes.
+	DiffURL string
 }
 
 // Issue contains file, position and string describing a single issue.
@@ -42,6 +63,11 @@ var _ executer = (*fsExecuter)(nil)
 // CombinedOutput implements executer interface
 func (fsExecuter) CombinedOutput(cmd *exec.Cmd) ([]byte, error) {
 	return cmd.CombinedOutput()
+}
+
+// Run implements executer interface
+func (fsExecuter) Run(cmd *exec.Cmd) error {
+	return cmd.Run()
 }
 
 // Mktemp implements executer interface

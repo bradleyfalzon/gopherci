@@ -9,8 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
+	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/bradleyfalzon/revgrep"
+	"github.com/pkg/errors"
 )
 
 // FileSystem analyses a repository and patch for issues using the file
@@ -50,15 +53,19 @@ func NewFileSystem(gopath string) (*FileSystem, error) {
 }
 
 // Analyse implements Analyser interface
-func (fs *FileSystem) Analyse(repoURL, branch, diffURL string) ([]Issue, error) {
-	log.Printf("fs.Analyse repoURL %q branch %q diffURL %q GOPATH %q", repoURL, branch, diffURL, fs.gopath)
+func (fs *FileSystem) Analyse(tools []db.Tool, config Config) ([]Issue, error) {
+	log.Printf("fs.Analyse %#v GOPATH %q", config, fs.gopath)
 
 	// download patch
-	patch, err := http.Get(diffURL)
+	resp, err := http.Get(config.DiffURL)
 	if err != nil {
 		return nil, err
 	}
-	defer patch.Body.Close()
+	patch, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return nil, errors.Wrap(err, "could not ioutil.ReadAll response from"+config.DiffURL)
+	}
 
 	// make temp dir
 	tmpdir, err := fs.executer.Mktemp(filepath.Join(fs.gopath, "src", "gopherci"))
@@ -73,48 +80,65 @@ func (fs *FileSystem) Analyse(repoURL, branch, diffURL string) ([]Issue, error) 
 
 	// clone repo
 	// TODO check out https://godoc.org/golang.org/x/tools/go/vcs to be agnostic
-	cmd := exec.Command("git", "clone", "--branch", branch, "--depth", "0", "--single-branch", repoURL, tmpdir)
+	cmd := exec.Command("git", "clone", "--branch", config.HeadBranch, "--depth", "0", "--single-branch", config.HeadURL, tmpdir)
 	log.Printf("path: %v %v, dir: %v, env: %v", cmd.Path, cmd.Args, cmd.Dir, cmd.Env)
 	out, err := fs.executer.CombinedOutput(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("could not %v %v: %s\n%s", cmd.Path, cmd.Args, err, out)
 	}
 	//defer os.RemoveAll(tmpdir)
-
 	log.Println("clone success to:", tmpdir)
+
+	// fetch base/upstream as some tools (apicompat) needs it
+	cmd = exec.Command("git", "fetch", config.BaseURL, config.BaseBranch)
+	cmd.Dir = tmpdir
+	out, err = fs.executer.CombinedOutput(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("could not %v %v: %s\n%s", cmd.Path, cmd.Args, err, out)
+	}
+	log.Println("fetch base success")
 
 	// fetch dependencies, some static analysis tools require building a project
 
-	// run go vet
-	// TODO expand this to have a user configurable amount of tools/libraries
-	cmd = exec.Command("go", "vet", "./...")
-	cmd.Env = []string{"GOPATH=" + fs.gopath}
-	cmd.Dir = tmpdir
-	log.Printf("path: %v %v, dir: %v, env: %v", cmd.Path, cmd.Args, cmd.Dir, cmd.Env)
-	// ignore errors, often it's about the exit status
-	// TODO check these errors better, other static analysis tools check the code
-	// explicitly or at least don't ignore it
-	allIssues, _ := fs.executer.CombinedOutput(cmd)
-	log.Println("go vet output:", string(allIssues))
-
-	checker := revgrep.Checker{
-		Patch: patch.Body,
-		Debug: os.Stdout,
-	}
-
-	revIssues, err := checker.Check(bytes.NewReader(allIssues), ioutil.Discard)
-	if err != nil {
-		return nil, err
-	}
-	log.Printf("revgrep found %v issues", len(revIssues))
-
 	var issues []Issue
-	for _, issue := range revIssues {
-		issues = append(issues, Issue{
-			File:    issue.File,
-			HunkPos: issue.HunkPos,
-			Issue:   issue.Issue,
-		})
+	for _, tool := range tools {
+		cmd := exec.Command(tool.Path)
+		for _, arg := range strings.Fields(tool.Args) {
+			switch arg {
+			case ArgBaseBranch:
+				// Tool wants the base branch name as a flag
+				arg = "FETCH_HEAD"
+			}
+			cmd.Args = append(cmd.Args, arg)
+		}
+		cmd.Env = []string{"GOPATH=" + fs.gopath, "PATH=" + os.Getenv("PATH")}
+		cmd.Dir = tmpdir
+		log.Printf("tool: %v, path: %v %v, dir: %v, env: %v", tool.Name, cmd.Path, cmd.Args, cmd.Dir, cmd.Env)
+		// ignore errors, often it's about the exit status
+		// TODO check these errors better, other static analysis tools check the code
+		// explicitly or at least don't ignore it
+		out, _ := fs.executer.CombinedOutput(cmd)
+		log.Printf("%v output:\n%s", tool.Name, out)
+
+		checker := revgrep.Checker{
+			Patch:  bytes.NewReader(patch),
+			Regexp: tool.Regexp,
+			Debug:  os.Stdout,
+		}
+
+		revIssues, err := checker.Check(bytes.NewReader(out), ioutil.Discard)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("revgrep found %v issues", len(revIssues))
+
+		for _, issue := range revIssues {
+			issues = append(issues, Issue{
+				File:    issue.File,
+				HunkPos: issue.HunkPos,
+				Issue:   fmt.Sprintf("%s: %s", tool.Name, issue.Message),
+			})
+		}
 	}
 
 	return issues, nil

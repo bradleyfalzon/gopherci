@@ -111,9 +111,13 @@ func TestPullRequestEvent(t *testing.T) {
 	)
 
 	var (
-		expectedRepoURL = "some-repo-url"
-		expectedBranch  = "some-branch"
-		expectedDiffURL = "some-diff-url"
+		expectedConfig = analyser.Config{
+			BaseURL:    "base-repo-url",
+			BaseBranch: "base-branch",
+			HeadURL:    "head-repo-url",
+			HeadBranch: "head-branch",
+			DiffURL:    "some-diff-url",
+		}
 		expectedCmtBody = "some-issue"
 		expectedCmtPath = "main.go"
 		expectedCmtPos  = 1
@@ -180,13 +184,19 @@ func TestPullRequestEvent(t *testing.T) {
 		Number: github.Int(1),
 		PullRequest: &github.PullRequest{
 			StatusesURL: github.String(ts.URL + "/status-url"),
-			DiffURL:     github.String(expectedDiffURL),
+			DiffURL:     github.String(expectedConfig.DiffURL),
+			Base: &github.PullRequestBranch{
+				Repo: &github.Repository{
+					CloneURL: github.String(expectedConfig.BaseURL),
+				},
+				Ref: github.String(expectedConfig.BaseBranch),
+			},
 			Head: &github.PullRequestBranch{
 				Repo: &github.Repository{
-					CloneURL: github.String(expectedRepoURL),
+					CloneURL: github.String(expectedConfig.HeadURL),
 				},
 				SHA: github.String(expectedCmtSHA),
-				Ref: github.String(expectedBranch),
+				Ref: github.String(expectedConfig.HeadBranch),
 			},
 		},
 		Repo: &github.Repository{
@@ -202,12 +212,8 @@ func TestPullRequestEvent(t *testing.T) {
 		t.Errorf("did not expect error: %v", err)
 	case !statePending:
 		t.Errorf("did not set status state to pending")
-	case mockAnalyser.RepoURL != expectedRepoURL:
-		t.Errorf("analyser repoURL expected %v, got %v", expectedRepoURL, mockAnalyser.DiffURL)
-	case mockAnalyser.Branch != expectedBranch:
-		t.Errorf("analyser branch expected %v, got %v", expectedBranch, mockAnalyser.Branch)
-	case mockAnalyser.DiffURL != expectedDiffURL:
-		t.Errorf("analyser diffURL expected %v, got %v", expectedDiffURL, mockAnalyser.DiffURL)
+	case mockAnalyser.Config != expectedConfig:
+		t.Errorf("have: %#v\nwant: %#v", mockAnalyser.Config, expectedConfig)
 	case !postedComment:
 		t.Errorf("did not post comment")
 	case !stateSuccess:

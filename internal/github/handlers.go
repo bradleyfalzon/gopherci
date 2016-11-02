@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 )
@@ -86,7 +87,13 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 		return errors.Wrap(err, "error getting installation")
 	}
 	if install == nil {
-		return errors.New("could not find installation")
+		return errors.New(fmt.Sprintf("could not find installation for accountID %v", *e.Repo.Owner.ID))
+	}
+
+	// Find tools for this repo
+	tools, err := g.db.ListTools()
+	if err != nil {
+		return errors.Wrap(err, "could not get tools")
 	}
 
 	// Set the CI status API to pending
@@ -96,7 +103,15 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 	}
 
 	// Analyse
-	issues, err := g.analyser.Analyse(*pr.Head.Repo.CloneURL, *pr.Head.Ref, *pr.DiffURL)
+	config := analyser.Config{
+		BaseURL:    *pr.Base.Repo.CloneURL,
+		BaseBranch: *pr.Base.Ref,
+		HeadURL:    *pr.Head.Repo.CloneURL,
+		HeadBranch: *pr.Head.Ref,
+		DiffURL:    *pr.DiffURL,
+	}
+
+	issues, err := g.analyser.Analyse(tools, config)
 	if err != nil {
 		// Set Status ?
 		return errors.Wrap(err, fmt.Sprintf("could not analyse %v pr %v", *e.Repo.URL, *e.Number))
