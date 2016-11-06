@@ -65,11 +65,15 @@ func main() {
 		log.Fatalln("could not initialise db:", err)
 	}
 
-	// File System
-	fs, err := analyser.NewFileSystem(os.Getenv("ANALYSER_FS_GOPATH"))
+	// Analyser
+	analyser, err := analyser.NewDocker("gopherci-env:latest")
 	if err != nil {
-		log.Fatalln("could not initialise file system analyser:", err)
+		log.Fatalln("could not initialise Docker analyser:", err)
 	}
+	//analyser, err := analyser.NewFileSystem(os.Getenv("ANALYSER_FS_GOPATH"))
+	//if err != nil {
+	//log.Fatalln("could not initialise file system analyser:", err)
+	//}
 
 	// GitHub
 	log.Printf("GitHub Integration ID: %q, GitHub Integration PEM File: %q", os.Getenv("GITHUB_ID"), os.Getenv("GITHUB_PEM_FILE"))
@@ -83,7 +87,7 @@ func main() {
 		log.Fatalf("could not read private key for GitHub integration: %s", err)
 	}
 
-	gh, err := github.New(fs, db, int(integrationID), integrationKey)
+	gh, err := github.New(analyser, db, int(integrationID), integrationKey)
 	if err != nil {
 		log.Fatalln("could not initialise GitHub:", err)
 	}
