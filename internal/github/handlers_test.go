@@ -43,20 +43,32 @@ rezRkSNbJ8cqt9XQS+NNJ6Xwzl3EbuAt6r8f8VO1TIdRgFOgiUXRVNZ3ZyW8Hegd
 kGTL0A6/0yAu9qQZlFbaD5bWhQo7eyx63u4hZGppBhkTSPikOYUPCH8=
 -----END RSA PRIVATE KEY-----`)
 
-func setup(t *testing.T) (*GitHub, *analyser.MockAnalyser, *db.MockDB) {
+type mockAnalyser struct {
+	executed int
+}
+
+func (a *mockAnalyser) NewExecuter() (analyser.Executer, error) { return a, nil }
+func (a *mockAnalyser) Execute(args []string) (out []byte, err error) {
+	if len(args) > 0 && args[0] == "tool" {
+		return []byte(`main.go:1: error`), nil
+	}
+	return nil, nil
+}
+func (a *mockAnalyser) Stop() error { return nil }
+
+func setup(t *testing.T) (*GitHub, *db.MockDB) {
 	memDB := db.NewMockDB()
-	mockAnalyser := &analyser.MockAnalyser{}
 
 	// New GitHub
-	g, err := New(mockAnalyser, memDB, 1, integrationKey)
+	g, err := New(&mockAnalyser{}, memDB, 1, integrationKey)
 	if err != nil {
 		t.Fatal("could not initialise GitHub:", err)
 	}
-	return g, mockAnalyser, memDB
+	return g, memDB
 }
 
 func TestIntegrationInstallationEvent(t *testing.T) {
-	g, _, memDB := setup(t)
+	g, memDB := setup(t)
 
 	const (
 		accountID      = 1
@@ -102,7 +114,7 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 }
 
 func TestPullRequestEvent(t *testing.T) {
-	g, mockAnalyser, memDB := setup(t)
+	g, memDB := setup(t)
 
 	var (
 		statePending  bool
@@ -116,17 +128,24 @@ func TestPullRequestEvent(t *testing.T) {
 			BaseBranch: "base-branch",
 			HeadURL:    "head-repo-url",
 			HeadBranch: "head-branch",
-			DiffURL:    "some-diff-url",
 		}
-		expectedCmtBody = "some-issue"
+		expectedCmtBody = "Name: error"
 		expectedCmtPath = "main.go"
 		expectedCmtPos  = 1
-		expectedCmtSHA  = "abcdef"
+		expectedCmtSHA  = "error"
 	)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(r.Body)
 		switch r.RequestURI {
+		case "/diff-url":
+			fmt.Fprintln(w, `diff --git a/subdir/main.go b/subdir/main.go
+new file mode 100644
+index 0000000..6362395
+--- /dev/null
++++ b/main.go
+@@ -0,0 +1,1 @@
++var _ = fmt.Sprintln()`)
 		case "/status-url":
 			// Make sure status was set to pending and then success
 			var status struct {
@@ -170,6 +189,7 @@ func TestPullRequestEvent(t *testing.T) {
 	}))
 	defer ts.Close()
 	g.baseURL = ts.URL
+	expectedConfig.DiffURL = ts.URL + "/diff-url"
 
 	const (
 		accountID      = 1
@@ -177,7 +197,10 @@ func TestPullRequestEvent(t *testing.T) {
 	)
 
 	_ = memDB.AddGHInstallation(installationID, accountID)
-	mockAnalyser.Issues = []analyser.Issue{{expectedCmtPath, expectedCmtPos, expectedCmtBody}}
+
+	memDB.Tools = []db.Tool{
+		{Name: "Name", Path: "tool", Args: "-flag %BASE_BRANCH% ./..."},
+	}
 
 	event := &github.PullRequestEvent{
 		Action: github.String("opened"),
@@ -200,6 +223,7 @@ func TestPullRequestEvent(t *testing.T) {
 			},
 		},
 		Repo: &github.Repository{
+			URL: github.String("repo-url"),
 			Owner: &github.User{
 				ID: github.Int(accountID),
 			},
@@ -212,8 +236,6 @@ func TestPullRequestEvent(t *testing.T) {
 		t.Errorf("did not expect error: %v", err)
 	case !statePending:
 		t.Errorf("did not set status state to pending")
-	case mockAnalyser.Config != expectedConfig:
-		t.Errorf("have: %#v\nwant: %#v", mockAnalyser.Config, expectedConfig)
 	case !postedComment:
 		t.Errorf("did not post comment")
 	case !stateSuccess:

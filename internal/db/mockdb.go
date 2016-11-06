@@ -5,6 +5,7 @@ package db
 type MockDB struct {
 	installations map[int]int // accountID -> installationID
 	err           error
+	Tools         []Tool
 }
 
 // Ensure MockDB implements DB
@@ -43,5 +44,5 @@ func (db *MockDB) FindGHInstallation(accountID int) (*GHInstallation, error) {
 
 // ListTools implements DB interface
 func (db *MockDB) ListTools() ([]Tool, error) {
-	return nil, nil
+	return db.Tools, nil
 }
