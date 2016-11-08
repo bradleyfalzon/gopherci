@@ -1,95 +1,55 @@
 package analyser
 
 import (
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"os/exec"
-	"path/filepath"
-	"reflect"
+	"os"
 	"testing"
-
-	"github.com/bradleyfalzon/gopherci/internal/db"
 )
 
-// mockExecuter is a poor implementation of mock object and really should
-// be replaced with an external library
-type mockExecuter struct {
-	t *testing.T
-	// coArgsIn holds a slice of arguments for each invocation to require
-	coArgsIn [][]string
-	// coOut holds an array of each invocations output to return
-	coOut [][]byte
+func TestNewFileSystem_notExist(t *testing.T) {
+	base := "/does-not-exist"
+	_, err := NewFileSystem(base)
+	if err == nil {
+		t.Errorf("expected error for path %v, got: %v", base, err)
+	}
 }
 
-var _ executer = (*mockExecuter)(nil)
-
-func (e *mockExecuter) CombinedOutput(cmd *exec.Cmd) ([]byte, error) {
-	var (
-		output       []byte
-		expectedArgs []string
-	)
-	expectedArgs, e.coArgsIn = e.coArgsIn[0], e.coArgsIn[1:]
-	if !reflect.DeepEqual(expectedArgs, cmd.Args) {
-		e.t.Fatalf("expected args\n%+v\ngot\n%+v", expectedArgs, cmd.Args)
-	}
-
-	output, e.coOut = e.coOut[0], e.coOut[1:]
-	return output, nil
-}
-
-func (mockExecuter) Mktemp(base string) (string, error) {
-	return filepath.Join(base, "rand"), nil
-}
-
-func TestAnalyse(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `diff --git a/subdir/main.go b/subdir/main.go
-new file mode 100644
-index 0000000..6362395
---- /dev/null
-+++ b/main.go
-@@ -0,0 +1,1 @@
-+var _ = fmt.Sprintln()`)
-	}))
-	defer ts.Close()
-
-	cfg := Config{
-		BaseURL:    "base-url",
-		BaseBranch: "base-branch",
-		HeadURL:    "head-url",
-		HeadBranch: "head-branch",
-		DiffURL:    ts.URL,
-	}
-
-	tools := []db.Tool{
-		{Name: "Name", Path: "tool", Args: "-flag %BASE_BRANCH% ./..."},
-	}
-
-	executer := &mockExecuter{
-		t: t,
-		coArgsIn: [][]string{
-			{"git", "clone", "--branch", cfg.HeadBranch, "--depth", "0", "--single-branch", cfg.HeadURL, "/tmp/src/gopherci/rand"},
-			{"git", "fetch", cfg.BaseURL, cfg.BaseBranch},
-			{"tool", "-flag", "FETCH_HEAD", "./..."},
-		},
-		coOut: [][]byte{{}, {}, []byte(`main.go:1: error`)},
-	}
-
-	fs, err := NewFileSystem("/tmp")
+func TestFileSystem(t *testing.T) {
+	fs, err := NewFileSystem(os.TempDir())
 	if err != nil {
-		t.Fatal("unexpected error:", err)
+		t.Errorf("unexpected error: %v", err)
 	}
-	fs.executer = executer
 
-	issues, err := fs.Analyse(tools, cfg)
-
+	exec, err := fs.NewExecuter()
 	if err != nil {
-		t.Fatal("unexpected error:", err)
+		t.Errorf("unexpected error: %v", err)
+	}
+	gopath := exec.(*FileSystemExecuter).gopath
+
+	if !exists(gopath) {
+		t.Errorf("expected %q to exist", gopath)
 	}
 
-	expected := []Issue{{File: "main.go", HunkPos: 1, Issue: "Name: error"}}
-	if !reflect.DeepEqual(expected, issues) {
-		t.Errorf("expected issues:\n%+v\ngot:\n%+v", expected, issues)
+	out, err := exec.Execute([]string{"bash", "-c", "echo $GOPATH $PATH"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
+
+	if want := gopath + " " + os.Getenv("PATH") + "\n"; want != string(out) {
+		t.Errorf("\nwant %s\nhave %s", want, out)
+	}
+
+	err = exec.Stop()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	if exists(gopath) {
+		t.Errorf("expected %q to be removed", gopath)
+	}
+
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil || !os.IsNotExist(err)
 }

@@ -111,7 +111,7 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 		DiffURL:    *pr.DiffURL,
 	}
 
-	issues, err := g.analyser.Analyse(tools, config)
+	issues, err := analyser.Analyse(g.analyser, tools, config)
 	if err != nil {
 		// Set Status ?
 		return errors.Wrap(err, fmt.Sprintf("could not analyse %v pr %v", *e.Repo.URL, *e.Number))

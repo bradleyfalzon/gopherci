@@ -1,13 +1,16 @@
 package analyser
 
 import (
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
-	"time"
+	"strings"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/bradleyfalzon/revgrep"
 	"github.com/pkg/errors"
 )
 
@@ -19,7 +22,7 @@ const (
 // Analyser analyses a repository and branch, returns issues found in patch
 // or an error.
 type Analyser interface {
-	Analyse(tools []db.Tool, config Config) ([]Issue, error)
+	NewExecuter() (Executer, error)
 }
 
 // Config hold configuration options for use in analyser. All options
@@ -47,35 +50,95 @@ type Issue struct {
 	Issue string
 }
 
-// executer is an interface used for mocking real file system calls
-type executer interface {
-	// CombinedOutput executes CombinedOutput on provided cmd.
-	CombinedOutput(*exec.Cmd) ([]byte, error)
-	// Mktemp makes and returns full path to a random directory inside absolute path base.
-	Mktemp(string) (string, error)
+// Executer executes a single command in a contained environment.
+type Executer interface {
+	// Execute executes a command and returns the combined stdout and stderr,
+	// along with an error if any. Must not be called after Stop().
+	Execute([]string) ([]byte, error)
+	// Stop stops the executer and allows it to cleanup, if applicable.
+	Stop() error
 }
 
-type fsExecuter struct{}
+// Analyse downloads a repository set in config in an envrionment provided by
+// analyser, running the series of tools. Returns issues from tools that have
+// are likely to have been caused by a change.
+func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error) {
 
-// Ensure fsExecuter implements executer.
-var _ executer = (*fsExecuter)(nil)
-
-// CombinedOutput implements executer interface
-func (fsExecuter) CombinedOutput(cmd *exec.Cmd) ([]byte, error) {
-	return cmd.CombinedOutput()
-}
-
-// Run implements executer interface
-func (fsExecuter) Run(cmd *exec.Cmd) error {
-	return cmd.Run()
-}
-
-// Mktemp implements executer interface
-func (fsExecuter) Mktemp(base string) (string, error) {
-	rand := strconv.Itoa(int(time.Now().UnixNano()))
-	dir := filepath.Join(base, rand)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", errors.Wrap(err, "fsExecuter.Mktemp: cannot mkdir")
+	// download patch
+	resp, err := http.Get(config.DiffURL)
+	if err != nil {
+		return nil, err
 	}
-	return dir, nil
+	defer resp.Body.Close()
+	patch, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not ioutil.ReadAll response from"+config.DiffURL)
+	}
+
+	// Get a new executer/environment to execute in
+	exec, err := analyser.NewExecuter()
+
+	// clone repo
+	// TODO check out https://godoc.org/golang.org/x/tools/go/vcs to be agnostic
+	args := []string{"git", "clone", "--branch", config.HeadBranch, "--depth", "0", "--single-branch", config.HeadURL, "."}
+	out, err := exec.Execute(args)
+	if err != nil {
+		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+	}
+	log.Println("git clone success")
+
+	// fetch base/upstream as some tools (apicompat) needs it
+	args = []string{"git", "fetch", config.BaseURL, config.BaseBranch}
+	out, err = exec.Execute(args)
+	if err != nil {
+		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+	}
+	log.Println("fetch base success")
+
+	// fetch dependencies, some static analysis tools require building a project
+
+	var issues []Issue
+	for _, tool := range tools {
+		args := []string{tool.Path}
+		for _, arg := range strings.Fields(tool.Args) {
+			switch arg {
+			case ArgBaseBranch:
+				// Tool wants the base branch name as a flag
+				arg = "FETCH_HEAD"
+			}
+			args = append(args, arg)
+		}
+		log.Printf("tool: %v, args: %v", tool.Name, args)
+		// ignore errors, often it's about the exit status
+		// TODO check these errors better, other static analysis tools check the code
+		// explicitly or at least don't ignore it
+		out, _ := exec.Execute(args)
+		log.Printf("%v output:\n%s", tool.Name, out)
+
+		checker := revgrep.Checker{
+			Patch:  bytes.NewReader(patch),
+			Regexp: tool.Regexp,
+			Debug:  os.Stdout,
+		}
+
+		revIssues, err := checker.Check(bytes.NewReader(out), ioutil.Discard)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("revgrep found %v issues", len(revIssues))
+
+		for _, issue := range revIssues {
+			issues = append(issues, Issue{
+				File:    issue.File,
+				HunkPos: issue.HunkPos,
+				Issue:   fmt.Sprintf("%s: %s", tool.Name, issue.Message),
+			})
+		}
+	}
+
+	if err := exec.Stop(); err != nil {
+		log.Printf("warning: could not stop executer: %v", err)
+	}
+
+	return issues, nil
 }
