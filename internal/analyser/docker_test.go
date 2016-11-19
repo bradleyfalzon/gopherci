@@ -6,7 +6,7 @@ import (
 )
 
 func TestDocker(t *testing.T) {
-	docker, err := NewDocker("gopherci-env:latest")
+	docker, err := NewDocker(DockerDefaultImage)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

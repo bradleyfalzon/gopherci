@@ -78,7 +78,7 @@ func main() {
 	case "docker":
 		image := os.Getenv("ANALYSER_DOCKER_IMAGE")
 		if image == "" {
-			image = "gopherci-env:latest"
+			image = analyser.DockerDefaultImage
 		}
 		analyse, err = analyser.NewDocker(image)
 		if err != nil {

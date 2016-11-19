@@ -1,5 +1,11 @@
 language: go
+# sudo for docker service
+# https://docs.travis-ci.com/user/docker/
+sudo: required
+services:
+    - docker
 before_install:
+    - docker pull bradleyfalzon/gopherci-env:latest
     - go get github.com/mattn/goveralls
     - go get golang.org/x/tools/cmd/cover
 script:
