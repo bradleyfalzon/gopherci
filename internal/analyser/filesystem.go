@@ -37,7 +37,11 @@ func NewFileSystem(base string) (*FileSystem, error) {
 
 // NewExecuter implements the Analyser interface
 func (fs *FileSystem) NewExecuter() (Executer, error) {
-	return newFileSystemExecuter(fs.base)
+	e := &FileSystemExecuter{}
+	if err := e.mktemp(fs.base); err != nil {
+		return nil, err
+	}
+	return e, nil
 }
 
 // FileSystemExecuter is an Executer that runs commands in a contained
@@ -49,14 +53,6 @@ type FileSystemExecuter struct {
 
 // Ensure FileSystemExecuter implements Executer
 var _ Executer = (*FileSystemExecuter)(nil)
-
-func newFileSystemExecuter(base string) (*FileSystemExecuter, error) {
-	e := &FileSystemExecuter{}
-	if err := e.mktemp(base); err != nil {
-		return nil, err
-	}
-	return e, nil
-}
 
 func (e *FileSystemExecuter) mktemp(base string) error {
 	rand := strconv.Itoa(int(time.Now().UnixNano()))

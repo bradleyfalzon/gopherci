@@ -29,8 +29,6 @@ func main() {
 		log.Fatalln("GITHUB_ID is not set")
 	case os.Getenv("GITHUB_PEM_FILE") == "":
 		log.Fatalln("GITHUB_PEM_FILE is not set")
-	case os.Getenv("ANALYSER_FS_GOPATH") == "":
-		log.Fatalln("ANALYSER_FS_GOPATH is not set")
 	}
 
 	// Database
@@ -65,10 +63,31 @@ func main() {
 		log.Fatalln("could not initialise db:", err)
 	}
 
-	// File System
-	fs, err := analyser.NewFileSystem(os.Getenv("ANALYSER_FS_GOPATH"))
-	if err != nil {
-		log.Fatalln("could not initialise file system analyser:", err)
+	// Analyser
+	log.Printf("Using analyser %q", os.Getenv("ANALYSER"))
+	var analyse analyser.Analyser
+	switch os.Getenv("ANALYSER") {
+	case "filesystem":
+		if os.Getenv("ANALYSER_FILESYSTEM_PATH") == "" {
+			log.Fatalln("ANALYSER_FILESYSTEM_PATH is not set")
+		}
+		analyse, err = analyser.NewFileSystem(os.Getenv("ANALYSER_FILESYSTEM_PATH"))
+		if err != nil {
+			log.Fatalln("could not initialise file system analyser:", err)
+		}
+	case "docker":
+		image := os.Getenv("ANALYSER_DOCKER_IMAGE")
+		if image == "" {
+			image = analyser.DockerDefaultImage
+		}
+		analyse, err = analyser.NewDocker(image)
+		if err != nil {
+			log.Fatalln("could not initialise Docker analyser:", err)
+		}
+	case "":
+		log.Fatalln("ANALYSER is not set")
+	default:
+		log.Fatalf("Unknown ANALYSER option %q", os.Getenv("ANALYSER"))
 	}
 
 	// GitHub
@@ -83,7 +102,7 @@ func main() {
 		log.Fatalf("could not read private key for GitHub integration: %s", err)
 	}
 
-	gh, err := github.New(fs, db, int(integrationID), integrationKey)
+	gh, err := github.New(analyse, db, int(integrationID), integrationKey)
 	if err != nil {
 		log.Fatalln("could not initialise GitHub:", err)
 	}

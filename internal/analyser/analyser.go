@@ -77,10 +77,15 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 
 	// Get a new executer/environment to execute in
 	exec, err := analyser.NewExecuter()
+	if err != nil {
+		return nil, errors.Wrap(err, "analyser could create new executer")
+	}
+	log.Println("analyser created new environment")
 
 	// clone repo
 	// TODO check out https://godoc.org/golang.org/x/tools/go/vcs to be agnostic
-	args := []string{"git", "clone", "--branch", config.HeadBranch, "--depth", "0", "--single-branch", config.HeadURL, "."}
+	args := []string{"git", "clone", "--branch", config.HeadBranch, "--depth", "1", "--single-branch", config.HeadURL, "."}
+	log.Println("excuting:", args)
 	out, err := exec.Execute(args)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
@@ -89,6 +94,7 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 
 	// fetch base/upstream as some tools (apicompat) needs it
 	args = []string{"git", "fetch", config.BaseURL, config.BaseBranch}
+	log.Println("excuting:", args)
 	out, err = exec.Execute(args)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
@@ -108,7 +114,7 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 			}
 			args = append(args, arg)
 		}
-		log.Printf("tool: %v, args: %v", tool.Name, args)
+		log.Printf("executing tool: %v, args: %v", tool.Name, args)
 		// ignore errors, often it's about the exit status
 		// TODO check these errors better, other static analysis tools check the code
 		// explicitly or at least don't ignore it
