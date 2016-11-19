@@ -15,14 +15,18 @@ const (
 	stopContainerTimeout = 1
 )
 
+// Docker is an Analyser that provides an Executer to build projects inside
+// Docker containers.
 type Docker struct {
 	image  string
 	client *docker.Client
 }
 
-// Ensure Docker implements Analyser interface
+// Ensure Docker implements Analyser interface.
 var _ Analyser = (*Docker)(nil)
 
+// NewDocker returns a Docker which uses imageName as a container to build
+// projects.
 func NewDocker(imageName string) (*Docker, error) {
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
@@ -46,6 +50,8 @@ func NewDocker(imageName string) (*Docker, error) {
 	return &Docker{image: imageName, client: client}, nil
 }
 
+// DockerExecuter is an Executer that runs commands in a contained
+// environment for a single project.
 type DockerExecuter struct {
 	client    *docker.Client
 	container *docker.Container
@@ -91,6 +97,8 @@ func (d *Docker) NewExecuter() (Executer, error) {
 	return exec, nil
 }
 
+// Execute implements the Executer interface and runs commands inside a
+// docker container.
 func (e *DockerExecuter) Execute(args []string) ([]byte, error) {
 	// "cd e.projPath; cmd" ignore the errors from cd as the first command
 	// executed is the mkdir
@@ -126,13 +134,13 @@ func (e *DockerExecuter) Execute(args []string) ([]byte, error) {
 		return nil, errors.Wrap(err, fmt.Sprintf("could not inspect exec for containerID %v", e.container.ID))
 	}
 	if inspect.ExitCode != 0 {
-		return buf.Bytes(), errors.New(fmt.Sprintf("exit code: %v, config: %+v", inspect.ExitCode, inspect.ProcessConfig))
+		return buf.Bytes(), fmt.Errorf("exit code: %v, config: %+v", inspect.ExitCode, inspect.ProcessConfig)
 	}
 
 	return buf.Bytes(), nil
 }
 
-// stopContainer stops and removes a container ignoring any errors.
+// Stop stops and removes a container ignoring any errors.
 func (e *DockerExecuter) Stop() error {
 	err := e.client.StopContainer(e.container.ID, stopContainerTimeout)
 	if err != nil {

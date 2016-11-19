@@ -113,7 +113,7 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 
 	issues, err := analyser.Analyse(g.analyser, tools, config)
 	if err != nil {
-		if err := install.SetStatus(*pr.StatusesURL, StatusStateError); err != nil {
+		if err = install.SetStatus(*pr.StatusesURL, StatusStateError); err != nil {
 			log.Printf("could not set status to error for %v", *pr.StatusesURL)
 		}
 		return errors.Wrap(err, fmt.Sprintf("could not analyse %v pr %v", *e.Repo.URL, *e.Number))
