@@ -49,10 +49,12 @@ func main() {
 	migrations := &migrate.FileMigrationSource{Dir: "migrations"}
 	migrate.SetTable("migrations")
 	direction := migrate.Up
+	migrateMax := 0
 	if len(os.Args) > 1 && os.Args[1] == "down" {
 		direction = migrate.Down
+		migrateMax = 1
 	}
-	n, err := migrate.Exec(sqlDB, os.Getenv("DB_DRIVER"), migrations, direction)
+	n, err := migrate.ExecMax(sqlDB, os.Getenv("DB_DRIVER"), migrations, direction, migrateMax)
 	log.Printf("Applied %d migrations to database", n)
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "could not execute all migrations"))
