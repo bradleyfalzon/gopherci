@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io/ioutil"
@@ -23,6 +24,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file:", err)
 	}
+
+	// Graceful shutdown handler
+	_, cancelFunc := context.WithCancel(context.Background())
+	go SignalHandler(cancelFunc)
 
 	switch {
 	case os.Getenv("GITHUB_ID") == "":
@@ -110,6 +115,9 @@ func main() {
 	}
 	http.HandleFunc("/gh/webhook", gh.WebHookHandler)
 	http.HandleFunc("/gh/callback", gh.CallBackHandler)
+
+	// Health checks
+	http.HandleFunc("/health-check", HealthCheckHandler)
 
 	// Listen
 	log.Println("Listening on :3000")
