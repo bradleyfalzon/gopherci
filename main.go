@@ -13,7 +13,9 @@ import (
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/bradleyfalzon/gopherci/internal/github"
+	"github.com/bradleyfalzon/gopherci/internal/queue"
 	_ "github.com/go-sql-driver/mysql"
+	gh "github.com/google/go-github/github"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 	migrate "github.com/rubenv/sql-migrate"
@@ -26,7 +28,7 @@ func main() {
 	}
 
 	// Graceful shutdown handler
-	_, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	go SignalHandler(cancelFunc)
 
 	switch {
@@ -97,6 +99,10 @@ func main() {
 		log.Fatalf("Unknown ANALYSER option %q", os.Getenv("ANALYSER"))
 	}
 
+	// Queuer
+	queueChan := make(chan interface{})
+	queue := queue.NewMemoryQueue(ctx, queueChan)
+
 	// GitHub
 	log.Printf("GitHub Integration ID: %q, GitHub Integration PEM File: %q", os.Getenv("GITHUB_ID"), os.Getenv("GITHUB_PEM_FILE"))
 	integrationID, err := strconv.ParseInt(os.Getenv("GITHUB_ID"), 10, 64)
@@ -109,12 +115,15 @@ func main() {
 		log.Fatalf("could not read private key for GitHub integration: %s", err)
 	}
 
-	gh, err := github.New(analyse, db, int(integrationID), integrationKey)
+	gh, err := github.New(analyse, db, queue, int(integrationID), integrationKey)
 	if err != nil {
 		log.Fatalln("could not initialise GitHub:", err)
 	}
 	http.HandleFunc("/gh/webhook", gh.WebHookHandler)
 	http.HandleFunc("/gh/callback", gh.CallBackHandler)
+
+	// Listen for jobs from the queue
+	go queueListen(ctx, queueChan, gh)
 
 	// Health checks
 	http.HandleFunc("/health-check", HealthCheckHandler)
@@ -123,5 +132,27 @@ func main() {
 	log.Println("Listening on :3000")
 	if err := http.ListenAndServe(":3000", nil); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// queueListen listens for jobs on the queue and executes the relevant handlers.
+func queueListen(ctx context.Context, queueChan <-chan interface{}, g *github.GitHub) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case job := <-queueChan:
+			log.Printf("main: reading job type %T", job)
+			var err error
+			switch e := job.(type) {
+			case *gh.PullRequestEvent:
+				err = g.PullRequestEvent(e)
+			default:
+				err = fmt.Errorf("unknown queue job type %T", e)
+			}
+			if err != nil {
+				log.Println("queue processing error:", err)
+			}
+		}
 	}
 }

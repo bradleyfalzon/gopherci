@@ -38,19 +38,15 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("parsed webhook event: %T", event)
 
-	// process hook in background
-	go func() {
-		var err error
-		switch e := event.(type) {
-		case *github.IntegrationInstallationEvent:
-			err = g.integrationInstallationEvent(e)
-		case *github.PullRequestEvent:
-			err = g.pullRequestEvent(e)
-		}
-		if err != nil {
-			log.Println(err)
-		}
-	}()
+	switch e := event.(type) {
+	case *github.IntegrationInstallationEvent:
+		err = g.integrationInstallationEvent(e)
+	case *github.PullRequestEvent:
+		g.queuer.Queue(e)
+	}
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationEvent) error {
@@ -72,7 +68,8 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 	return nil
 }
 
-func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
+// PullRequestEvent processes as Pull Request from GitHub.
+func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	if e.Action == nil || *e.Action != "opened" {
 		return fmt.Errorf("ignoring PR #%v action: %q", *e.Number, *e.Action)
 	}
@@ -87,7 +84,7 @@ func (g *GitHub) pullRequestEvent(e *github.PullRequestEvent) error {
 		return errors.Wrap(err, "error getting installation")
 	}
 	if install == nil {
-		return errors.New(fmt.Sprintf("could not find installation for accountID %v", *e.Repo.Owner.ID))
+		return fmt.Errorf("could not find installation for accountID %v", *e.Repo.Owner.ID)
 	}
 
 	// Find tools for this repo

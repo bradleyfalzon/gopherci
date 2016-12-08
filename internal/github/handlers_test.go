@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/bradleyfalzon/gopherci/internal/queue"
 	"github.com/google/go-github/github"
 )
 
@@ -58,9 +60,11 @@ func (a *mockAnalyser) Stop() error { return nil }
 
 func setup(t *testing.T) (*GitHub, *db.MockDB) {
 	memDB := db.NewMockDB()
+	c := make(chan interface{})
+	queue := queue.NewMemoryQueue(context.Background(), c)
 
 	// New GitHub
-	g, err := New(&mockAnalyser{}, memDB, 1, integrationKey)
+	g, err := New(&mockAnalyser{}, memDB, queue, 1, integrationKey)
 	if err != nil {
 		t.Fatal("could not initialise GitHub:", err)
 	}
@@ -230,7 +234,7 @@ index 0000000..6362395
 		},
 	}
 
-	err := g.pullRequestEvent(event)
+	err := g.PullRequestEvent(event)
 	switch {
 	case err != nil:
 		t.Errorf("did not expect error: %v", err)
