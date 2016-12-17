@@ -101,7 +101,24 @@ func main() {
 
 	// Queuer
 	queueChan := make(chan interface{})
-	queue := queue.NewMemoryQueue(ctx, queueChan)
+	var q queue.Queuer
+	switch os.Getenv("QUEUER") {
+	case "memory":
+		q = queue.NewMemoryQueue(ctx, queueChan)
+	case "gcppubsub":
+		switch {
+		case os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID") == "":
+			log.Fatalf("QUEUER_GCPPUBSUB_PROJECT_ID is not set")
+		}
+		q, err = queue.NewGCPPubSubQueue(ctx, queueChan, os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID"), os.Getenv("QUEUER_GCPPUBSUB_TOPIC"))
+		if err != nil {
+			log.Fatal("Could not initialise GCPPubSubQueue:", err)
+		}
+	case "":
+		log.Fatalln("QUEUER is not set")
+	default:
+		log.Fatalf("Unknown QUEUER option %q", os.Getenv("QUEUER"))
+	}
 
 	// GitHub
 	log.Printf("GitHub Integration ID: %q, GitHub Integration PEM File: %q", os.Getenv("GITHUB_ID"), os.Getenv("GITHUB_PEM_FILE"))
@@ -115,7 +132,7 @@ func main() {
 		log.Fatalf("could not read private key for GitHub integration: %s", err)
 	}
 
-	gh, err := github.New(analyse, db, queue, int(integrationID), integrationKey)
+	gh, err := github.New(analyse, db, q, int(integrationID), integrationKey)
 	if err != nil {
 		log.Fatalln("could not initialise GitHub:", err)
 	}

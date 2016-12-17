@@ -4,6 +4,12 @@
 - Bug fixes are fine to go straight to PR.
 - Tests are encouraged, but help can be given to add them if you require.
 
+# Skipping Tests
+
+Some tests require external integration, such as Google Cloud credentials, you
+can skip these tests using `go test -short`, and let the CI process run these
+during the Pull Request CI tests.
+
 # Development Environment
 
 You'll need:

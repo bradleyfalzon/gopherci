@@ -42,7 +42,7 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 	case *github.IntegrationInstallationEvent:
 		err = g.integrationInstallationEvent(e)
 	case *github.PullRequestEvent:
-		g.queuer.Queue(e)
+		err = g.queuer.Queue(e)
 	}
 	if err != nil {
 		log.Println(err)
