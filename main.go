@@ -22,10 +22,8 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file:", err)
-	}
+	// Load environment from .env, ignore errors as it's optional and dev only
+	_ = godotenv.Load()
 
 	// Graceful shutdown handler
 	ctx, cancelFunc := context.WithCancel(context.Background())
