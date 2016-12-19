@@ -21,6 +21,15 @@ You'll need:
     - To migrate down, run `gopherci down`
 - Web server with public access (or via ngrok)
 
+The following interfaces have alternative implementations that can be used
+instead of the default:
+
+- Queue
+    - GCPPubSub: a Google Service Account with at least the `PubSub Admin` role, ensure
+        `GOOGLE_APPLICATION_CREDENTIALS=file.json` is set.
+- Analyser
+    - Docker: Running Docker daemon and image `bradleyfalzon/gopherci-env:latest` pulled.
+
 # Test GitHub Integration
 
 - Register a new GitHub Integration with the following:
