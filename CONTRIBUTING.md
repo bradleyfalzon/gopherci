@@ -21,6 +21,15 @@ You'll need:
     - To migrate down, run `gopherci down`
 - Web server with public access (or via ngrok)
 
+The following interfaces have alternative implementations that can be used
+instead of the default:
+
+- Queue
+    - GCPPubSub: a Google Service Account with at least the `PubSub Admin` role, ensure
+        `GOOGLE_APPLICATION_CREDENTIALS=file.json` is set.
+- Analyser
+    - Docker: Running Docker daemon and image `bradleyfalzon/gopherci-env:latest` pulled.
+
 # Test GitHub Integration
 
 - Register a new GitHub Integration with the following:
@@ -30,10 +39,12 @@ You'll need:
     - Web hook secret: shared secret
     - Permissions
         - Repository metadata: Read-only
-        - Commit statuses: Read & Write
-        - Repository contents: Read-only
-        - Pull requests: Read & write
-            - Pull request event
+            - Repository event (remove public information when project change to private or deleted #22)
+        - Commit statuses: Read & Write (update the commit status API eg when checking PR)
+        - Repository contents: Read-only (clone repository)
+            - Push event (check pushes to repository #27)
+        - Pull requests: Read & write (write comments)
+            - Pull request event (check PRs to repository)
     - Installed on: Only on this account
 - Once you've registered the integration
 	- Generate private key, save it somewhere accessible to GopherCI and set the .env file or environment
