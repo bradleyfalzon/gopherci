@@ -32,11 +32,12 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 
 	event, err := github.ParseWebHook(github.WebHookType(r), body)
 	if err != nil {
+		log.Println("github: failed to parse webhook:", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("parsed webhook event: %T", event)
+	log.Printf("github: parsed webhook event: %T", event)
 
 	switch e := event.(type) {
 	case *github.IntegrationInstallationEvent:
@@ -45,7 +46,7 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 		err = g.queuer.Queue(e)
 	}
 	if err != nil {
-		log.Println(err)
+		log.Println("github: event handler error:", err)
 	}
 }
 
