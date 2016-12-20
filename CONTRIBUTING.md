@@ -39,10 +39,12 @@ instead of the default:
     - Web hook secret: shared secret
     - Permissions
         - Repository metadata: Read-only
-        - Commit statuses: Read & Write
-        - Repository contents: Read-only
-        - Pull requests: Read & write
-            - Pull request event
+            - Repository event (remove public information when project change to private or deleted #22)
+        - Commit statuses: Read & Write (update the commit status API eg when checking PR)
+        - Repository contents: Read-only (clone repository)
+            - Push event (check pushes to repository #27)
+        - Pull requests: Read & write (write comments)
+            - Pull request event (check PRs to repository)
     - Installed on: Only on this account
 - Once you've registered the integration
 	- Generate private key, save it somewhere accessible to GopherCI and set the .env file or environment
