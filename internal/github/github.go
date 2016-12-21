@@ -19,6 +19,7 @@ type GitHub struct {
 	db             db.DB
 	analyser       analyser.Analyser
 	queuer         queue.Queuer
+	webhookSecret  []byte            // shared webhook secret configured for the integration
 	integrationID  int               // id is the integration id
 	integrationKey []byte            // integrationKey is the private key for the installationID
 	tr             http.RoundTripper // tr is a transport shared by all installations to reuse http connections
@@ -30,11 +31,12 @@ type GitHub struct {
 // integrationID is the GitHub Integration ID (not installation ID).
 // integrationKey is the key for the integrationID provided to you by GitHub
 // during the integration registration.
-func New(analyser analyser.Analyser, db db.DB, queuer queue.Queuer, integrationID int, integrationKey []byte) (*GitHub, error) {
+func New(analyser analyser.Analyser, db db.DB, queuer queue.Queuer, integrationID int, integrationKey []byte, webhookSecret string) (*GitHub, error) {
 	g := &GitHub{
 		analyser:       analyser,
 		db:             db,
 		queuer:         queuer,
+		webhookSecret:  []byte(webhookSecret),
 		integrationID:  integrationID,
 		integrationKey: integrationKey,
 		tr:             http.DefaultTransport,

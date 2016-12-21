@@ -1,6 +1,7 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -58,17 +59,48 @@ func (a *mockAnalyser) Execute(args []string) (out []byte, err error) {
 }
 func (a *mockAnalyser) Stop() error { return nil }
 
+const webhookSecret = "ede9aa6b6e04fafd53f7460fb75644302e249177"
+
 func setup(t *testing.T) (*GitHub, *db.MockDB) {
 	memDB := db.NewMockDB()
 	c := make(chan interface{})
 	queue := queue.NewMemoryQueue(context.Background(), c)
 
 	// New GitHub
-	g, err := New(&mockAnalyser{}, memDB, queue, 1, integrationKey)
+	g, err := New(&mockAnalyser{}, memDB, queue, 1, integrationKey, webhookSecret)
 	if err != nil {
 		t.Fatal("could not initialise GitHub:", err)
 	}
 	return g, memDB
+}
+
+func TestWebhookHandler(t *testing.T) {
+	tests := []struct {
+		signature  string
+		event      string
+		expectCode int
+	}{
+		{"sha1=d1e100e3f17e8399b73137382896ff1536c59457", "goci-invalid", http.StatusBadRequest},
+		{"sha1=d1e100e3f17e8399b73137382896ff1536c59457", "push", http.StatusOK},
+		{"sha1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "push", http.StatusBadRequest},
+	}
+
+	for _, test := range tests {
+		g, _ := setup(t)
+		body := bytes.NewBufferString(`{"key":"value"}`)
+		r, err := http.NewRequest("POST", "https://example.com", body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Header.Add("X-GitHub-Event", test.event)
+		r.Header.Add("X-Hub-Signature", test.signature)
+		w := httptest.NewRecorder()
+		g.WebHookHandler(w, r)
+
+		if w.Code != test.expectCode {
+			t.Fatalf("have code: %v, want: %v, test: %+v", w.Code, test.expectCode, test)
+		}
+	}
 }
 
 func TestIntegrationInstallationEvent(t *testing.T) {

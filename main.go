@@ -34,6 +34,8 @@ func main() {
 		log.Fatalln("GITHUB_ID is not set")
 	case os.Getenv("GITHUB_PEM_FILE") == "":
 		log.Fatalln("GITHUB_PEM_FILE is not set")
+	case os.Getenv("GITHUB_WEBHOOK_SECRET") == "":
+		log.Fatalln("GITHUB_WEBHOOK_SECRET is not set")
 	}
 
 	// Database
@@ -130,7 +132,7 @@ func main() {
 		log.Fatalf("could not read private key for GitHub integration: %s", err)
 	}
 
-	gh, err := github.New(analyse, db, q, int(integrationID), integrationKey)
+	gh, err := github.New(analyse, db, q, int(integrationID), integrationKey, os.Getenv("GITHUB_WEBHOOK_SECRET"))
 	if err != nil {
 		log.Fatalln("could not initialise GitHub:", err)
 	}

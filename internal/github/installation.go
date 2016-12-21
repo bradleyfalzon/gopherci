@@ -63,7 +63,7 @@ func (i *Installation) SetStatus(statusURL string, status StatusState) error {
 		Description string `json:"description,omitempty"`
 		Context     string `json:"context,omitempty"`
 	}{
-		string(status), "", "short description", "continuous-integration/gopherci",
+		string(status), "", "static analysis of modified lines", "ci/gopherci",
 	}
 	log.Printf("status: %#v", status)
 
