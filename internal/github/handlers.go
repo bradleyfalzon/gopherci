@@ -2,7 +2,6 @@ package github
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -16,21 +15,14 @@ func (g *GitHub) CallBackHandler(w http.ResponseWriter, r *http.Request) {}
 
 // WebHookHandler is the net/http handler for github webhooks.
 func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	payload, err := github.ValidatePayload(r, g.webhookSecret)
 	if err != nil {
-		log.Println(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println("github: failed to validate payload:", err)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
-	// TODO
-	//payload, err := github.ValidatePayload(r, g.webhookSecretKey)
-	//if err != nil {
-	//http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-	//return
-	//}
-
-	event, err := github.ParseWebHook(github.WebHookType(r), body)
+	event, err := github.ParseWebHook(github.WebHookType(r), payload)
 	if err != nil {
 		log.Println("github: failed to parse webhook:", err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
