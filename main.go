@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
@@ -25,9 +26,11 @@ func main() {
 	// Load environment from .env, ignore errors as it's optional and dev only
 	_ = godotenv.Load()
 
+	srv := &http.Server{Addr: ":3000"} // http server, for graceful shutdown
+
 	// Graceful shutdown handler
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	go SignalHandler(cancelFunc)
+	go SignalHandler(cancelFunc, srv)
 
 	switch {
 	case os.Getenv("GITHUB_ID") == "":
@@ -100,17 +103,20 @@ func main() {
 	}
 
 	// Queuer
-	queueChan := make(chan interface{})
+	var (
+		wg        sync.WaitGroup           // wait for queue to finish before exiting
+		queueChan = make(chan interface{}) // receive jobs on this chan
+	)
 	var q queue.Queuer
 	switch os.Getenv("QUEUER") {
 	case "memory":
-		q = queue.NewMemoryQueue(ctx, queueChan)
+		q = queue.NewMemoryQueue(ctx, &wg, queueChan)
 	case "gcppubsub":
 		switch {
 		case os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID") == "":
 			log.Fatalf("QUEUER_GCPPUBSUB_PROJECT_ID is not set")
 		}
-		q, err = queue.NewGCPPubSubQueue(ctx, queueChan, os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID"), os.Getenv("QUEUER_GCPPUBSUB_TOPIC"))
+		q, err = queue.NewGCPPubSubQueue(ctx, &wg, queueChan, os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID"), os.Getenv("QUEUER_GCPPUBSUB_TOPIC"))
 		if err != nil {
 			log.Fatal("Could not initialise GCPPubSubQueue:", err)
 		}
@@ -146,10 +152,15 @@ func main() {
 	http.HandleFunc("/health-check", HealthCheckHandler)
 
 	// Listen
-	log.Println("Listening on :3000")
-	if err := http.ListenAndServe(":3000", nil); err != nil {
-		log.Fatal(err)
+	log.Println("main: listening on", srv.Addr)
+	if err := srv.ListenAndServe(); err != nil {
+		log.Println("main: http server error:", err)
 	}
+
+	// Wait for current item in queue to finish
+	log.Println("main: waiting for queuer to finish")
+	wg.Wait()
+	log.Println("main: exiting gracefully")
 }
 
 // queueListen listens for jobs on the queue and executes the relevant handlers.

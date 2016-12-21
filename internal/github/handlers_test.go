@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
@@ -63,8 +64,11 @@ const webhookSecret = "ede9aa6b6e04fafd53f7460fb75644302e249177"
 
 func setup(t *testing.T) (*GitHub, *db.MockDB) {
 	memDB := db.NewMockDB()
-	c := make(chan interface{})
-	queue := queue.NewMemoryQueue(context.Background(), c)
+	var (
+		wg sync.WaitGroup
+		c  = make(chan interface{})
+	)
+	queue := queue.NewMemoryQueue(context.Background(), &wg, c)
 
 	// New GitHub
 	g, err := New(&mockAnalyser{}, memDB, queue, 1, integrationKey, webhookSecret)

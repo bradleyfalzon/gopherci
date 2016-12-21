@@ -16,7 +16,7 @@ var shuttingDown bool
 
 // SignalHandler listens for a shutdown signal and calls cancelFunc, if
 // multiple signals are received in short succession, forcible quit.
-func SignalHandler(cancelFunc context.CancelFunc) {
+func SignalHandler(cancelFunc context.CancelFunc, srv *http.Server) {
 	// chan size 2 as multiple interrupts is force quit (supports ^C for dev)
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt)
@@ -31,6 +31,7 @@ func SignalHandler(cancelFunc context.CancelFunc) {
 		lastSignal = time.Now()
 		log.Printf("Received %v, preparing to shutdown", s)
 		shuttingDown = true
+		srv.Shutdown(context.Background())
 		cancelFunc()
 	}
 }

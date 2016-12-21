@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/google/go-github/github"
@@ -42,7 +43,9 @@ var _ Queuer = &GCPPubSubQueue{}
 
 // NewGCPPubSubQueue creates a new Queuer and listens on the queue, sending
 // new jobs to the channel c, projectID is required but topicName is optional.
-func NewGCPPubSubQueue(ctx context.Context, c chan<- interface{}, projectID, topicName string) (*GCPPubSubQueue, error) {
+// Calls wg.Done() when finished after context has ben cancelled and current
+// job has finished.
+func NewGCPPubSubQueue(ctx context.Context, wg *sync.WaitGroup, c chan<- interface{}, projectID, topicName string) (*GCPPubSubQueue, error) {
 	q := &GCPPubSubQueue{ctx: ctx, c: c}
 
 	if projectID == "" {
@@ -85,7 +88,8 @@ func NewGCPPubSubQueue(ctx context.Context, c chan<- interface{}, projectID, top
 		client.Close()
 	}()
 
-	go q.listen(itr)
+	wg.Add(1)
+	go q.listen(wg, itr)
 	return q, nil
 }
 
@@ -112,8 +116,10 @@ type container struct {
 	Job interface{}
 }
 
-// listen listens for messages from queue and runs the jobs, returns when iterator is stopped
-func (q *GCPPubSubQueue) listen(itr *pubsub.MessageIterator) {
+// listen listens for messages from queue and runs the jobs, returns when
+// iterator is stopped, calls wg.Done when returning.
+func (q *GCPPubSubQueue) listen(wg *sync.WaitGroup, itr *pubsub.MessageIterator) {
+	defer wg.Done()
 	for {
 		msg, err := itr.Next()
 		switch {
