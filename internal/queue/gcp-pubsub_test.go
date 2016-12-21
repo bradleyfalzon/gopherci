@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 )
@@ -20,11 +21,13 @@ func TestGCPPubSubQueue(t *testing.T) {
 	// by the http client
 	//defer leaktest.Check(t)() // ensure all goroutines exit
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-
-	topic := fmt.Sprintf("%s-unit-tests-%v", defaultTopicName, time.Now().Unix())
-	c := make(chan interface{})
-	q, err := NewGCPPubSubQueue(ctx, c, projectID, topic)
+	var (
+		ctx, cancelFunc = context.WithCancel(context.Background())
+		wg              sync.WaitGroup
+		c               = make(chan interface{})
+		topic           = fmt.Sprintf("%s-unit-tests-%v", defaultTopicName, time.Now().Unix())
+	)
+	q, err := NewGCPPubSubQueue(ctx, &wg, c, projectID, topic)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
