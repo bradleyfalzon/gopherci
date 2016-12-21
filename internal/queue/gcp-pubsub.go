@@ -125,8 +125,6 @@ func (q *GCPPubSubQueue) listen(wg *sync.WaitGroup, itr *pubsub.MessageIterator)
 		switch {
 		case err == iterator.Done:
 			log.Println("GCPPubSubQueue: stopping listening")
-			time.Sleep(10 * time.Second)
-			log.Println("GCPPubSubQueue: returning")
 			return
 		case err != nil:
 			log.Println("GCPPubSubQueue: could not read next message:", err)
