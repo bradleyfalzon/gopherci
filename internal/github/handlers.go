@@ -31,10 +31,13 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("github: parsed webhook event: %T", event)
 
+	log.Printf("event: %#v", event)
+
 	switch e := event.(type) {
 	case *github.IntegrationInstallationEvent:
 		err = g.integrationInstallationEvent(e)
 	case *github.PullRequestEvent:
+		log.Printf("prevent: %#v", e.Installation)
 		err = g.queuer.Queue(e)
 	}
 	if err != nil {
@@ -50,10 +53,10 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 	switch *e.Action {
 	case "created":
 		// Record the installation event in the database
-		err = g.db.AddGHInstallation(*e.Installation.ID, *e.Installation.Account.ID)
+		err = g.db.AddGHInstallation(*e.Installation.ID)
 	case "deleted":
 		// Remove the installation event from the database
-		err = g.db.RemoveGHInstallation(*e.Installation.Account.ID)
+		err = g.db.RemoveGHInstallation(*e.Installation.ID)
 	}
 	if err != nil {
 		return errors.Wrap(err, "database error handling integration installation event")
@@ -72,12 +75,12 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	pr := e.PullRequest
 
 	// Lookup installation
-	install, err := g.NewInstallation(*e.Repo.Owner.ID)
+	install, err := g.NewInstallation(*e.Installation.ID)
 	if err != nil {
 		return errors.Wrap(err, "error getting installation")
 	}
 	if install == nil {
-		return fmt.Errorf("could not find installation for accountID %v", *e.Repo.Owner.ID)
+		return fmt.Errorf("could not find installation with ID %v", *e.Installation.ID)
 	}
 
 	// Find tools for this repo

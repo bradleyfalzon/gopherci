@@ -110,17 +110,13 @@ func TestWebhookHandler(t *testing.T) {
 func TestIntegrationInstallationEvent(t *testing.T) {
 	g, memDB := setup(t)
 
-	const (
-		accountID      = 1
-		installationID = 2
-	)
+	const installationID = 2
 
 	event := &github.IntegrationInstallationEvent{
 		Action: github.String("created"),
 		Installation: &github.Installation{
 			ID: github.Int(installationID),
 			Account: &github.User{
-				ID:    github.Int(accountID),
 				Login: github.String("accountlogin"),
 			},
 		},
@@ -133,7 +129,7 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 	g.integrationInstallationEvent(event)
 
 	// Check DB received it
-	got, _ := memDB.FindGHInstallation(accountID)
+	got, _ := memDB.GetGHInstallation(installationID)
 	if got.InstallationID != installationID {
 		t.Errorf("got: %#v, want %#v", got.InstallationID, installationID)
 	}
@@ -142,7 +138,7 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 	event.Action = github.String("deleted")
 	g.integrationInstallationEvent(event)
 
-	got, _ = memDB.FindGHInstallation(accountID)
+	got, _ = memDB.GetGHInstallation(installationID)
 	if got != nil {
 		t.Errorf("got: %#v, expected nil", got)
 	}
@@ -231,12 +227,9 @@ index 0000000..6362395
 	g.baseURL = ts.URL
 	expectedConfig.DiffURL = ts.URL + "/diff-url"
 
-	const (
-		accountID      = 1
-		installationID = 2
-	)
+	const installationID = 2
 
-	_ = memDB.AddGHInstallation(installationID, accountID)
+	_ = memDB.AddGHInstallation(installationID)
 
 	memDB.Tools = []db.Tool{
 		{Name: "Name", Path: "tool", Args: "-flag %BASE_BRANCH% ./..."},
@@ -264,8 +257,10 @@ index 0000000..6362395
 		},
 		Repo: &github.Repository{
 			URL: github.String("repo-url"),
-			Owner: &github.User{
-				ID: github.Int(accountID),
+		},
+		WebhookCommon: github.WebhookCommon{
+			Installation: &github.Installation{
+				ID: github.Int(installationID),
 			},
 		},
 	}

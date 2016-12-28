@@ -17,22 +17,25 @@ type Installation struct {
 	client *github.Client
 }
 
-// accountID is the repo owner's id
-func (g *GitHub) NewInstallation(accountID int) (*Installation, error) {
+func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 
 	// TODO reuse installations, so we maintain rate limit state between webhooks
-	dbInstallation, err := g.db.FindGHInstallation(accountID)
+	installation, err := g.db.GetGHInstallation(installationID)
 	if err != nil {
 		return nil, err
 	}
-	if dbInstallation == nil {
+	if installation == nil {
+		return nil, nil
+	}
+	if !installation.IsEnabled() {
+		log.Printf("ignoring disabled installation: %+v", installation)
 		return nil, nil
 	}
 
-	log.Printf("found installation: %+v", dbInstallation)
-	itr, err := g.newInstallationTransport(dbInstallation.InstallationID)
+	log.Printf("found installation: %+v", installation)
+	itr, err := g.newInstallationTransport(installation.InstallationID)
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("could not initialise transport for installation id %v", dbInstallation.InstallationID))
+		return nil, errors.Wrap(err, fmt.Sprintf("could not initialise transport for installation id %v", installation.InstallationID))
 	}
 	client := github.NewClient(&http.Client{Transport: itr})
 

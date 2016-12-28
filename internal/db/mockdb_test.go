@@ -3,27 +3,25 @@ package db
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestMockDB(t *testing.T) {
 	db := NewMockDB()
 
-	const (
-		accountID      = 1
-		installationID = 2
-	)
+	const installationID = 2
 
-	err := db.AddGHInstallation(installationID, accountID)
+	err := db.AddGHInstallation(installationID)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
 
 	exp := &GHInstallation{
-		AccountID:      accountID,
 		InstallationID: installationID,
+		enabledAt:      time.Unix(1, 0),
 	}
 
-	installation, err := db.FindGHInstallation(accountID)
+	installation, err := db.GetGHInstallation(installationID)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
@@ -32,12 +30,12 @@ func TestMockDB(t *testing.T) {
 		t.Fatalf("exp: %#v, got: %#v", exp, installation)
 	}
 
-	err = db.RemoveGHInstallation(accountID)
+	err = db.RemoveGHInstallation(installationID)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
 
-	installation, err = db.FindGHInstallation(accountID)
+	installation, err = db.GetGHInstallation(installationID)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
