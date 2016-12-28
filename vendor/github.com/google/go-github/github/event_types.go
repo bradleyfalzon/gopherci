@@ -273,6 +273,10 @@ type PublicEvent struct {
 	Sender *User       `json:"sender,omitempty"`
 }
 
+type WebhookCommon struct {
+	Installation *Installation `json:"installation,omitempty"`
+}
+
 // PullRequestEvent is triggered when a pull request is assigned, unassigned,
 // labeled, unlabeled, opened, closed, reopened, or synchronized.
 // The Webhook event name is "pull_request".
@@ -289,6 +293,7 @@ type PullRequestEvent struct {
 	PullRequest *PullRequest `json:"pull_request,omitempty"`
 
 	// The following fields are only populated by Webhook events.
+	WebhookCommon
 	Changes *EditChange `json:"changes,omitempty"`
 	Repo    *Repository `json:"repository,omitempty"`
 	Sender  *User       `json:"sender,omitempty"`
