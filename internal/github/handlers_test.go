@@ -110,17 +110,23 @@ func TestWebhookHandler(t *testing.T) {
 func TestIntegrationInstallationEvent(t *testing.T) {
 	g, memDB := setup(t)
 
-	const installationID = 2
+	const (
+		installationID = 2
+		accountID      = 3
+		senderID       = 4
+	)
 
 	event := &github.IntegrationInstallationEvent{
 		Action: github.String("created"),
 		Installation: &github.Installation{
 			ID: github.Int(installationID),
 			Account: &github.User{
+				ID:    github.Int(accountID),
 				Login: github.String("accountlogin"),
 			},
 		},
 		Sender: &github.User{
+			ID:    github.Int(senderID),
 			Login: github.String("senderlogin"),
 		},
 	}
@@ -128,19 +134,25 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 	// Send create event
 	g.integrationInstallationEvent(event)
 
+	want := &db.GHInstallation{
+		InstallationID: installationID,
+		AccountID:      accountID,
+		SenderID:       senderID,
+	}
+
 	// Check DB received it
-	got, _ := memDB.GetGHInstallation(installationID)
-	if got.InstallationID != installationID {
-		t.Errorf("got: %#v, want %#v", got.InstallationID, installationID)
+	have, _ := memDB.GetGHInstallation(installationID)
+	if !reflect.DeepEqual(have, want) {
+		t.Errorf("\nhave: %#v\nwant: %#v", have, want)
 	}
 
 	// Send delete event
 	event.Action = github.String("deleted")
 	g.integrationInstallationEvent(event)
 
-	got, _ = memDB.GetGHInstallation(installationID)
-	if got != nil {
-		t.Errorf("got: %#v, expected nil", got)
+	have, _ = memDB.GetGHInstallation(installationID)
+	if have != nil {
+		t.Errorf("got: %#v, expected nil", have)
 	}
 
 	// force error
@@ -227,9 +239,14 @@ index 0000000..6362395
 	g.baseURL = ts.URL
 	expectedConfig.DiffURL = ts.URL + "/diff-url"
 
-	const installationID = 2
+	const (
+		installationID = 2
+		accountID      = 3
+		senderID       = 4
+	)
 
-	_ = memDB.AddGHInstallation(installationID)
+	_ = memDB.AddGHInstallation(installationID, accountID, senderID)
+	memDB.EnableGHInstallation(installationID)
 
 	memDB.Tools = []db.Tool{
 		{Name: "Name", Path: "tool", Args: "-flag %BASE_BRANCH% ./..."},
@@ -275,5 +292,49 @@ index 0000000..6362395
 		t.Errorf("did not post comment")
 	case !stateSuccess:
 		t.Errorf("did not set status state to success")
+	}
+}
+
+func TestPullRequestEvent_noInstall(t *testing.T) {
+	g, _ := setup(t)
+
+	const installationID = 2
+	event := &github.PullRequestEvent{
+		Action: github.String("opened"),
+		Number: github.Int(1),
+		WebhookCommon: github.WebhookCommon{
+			Installation: &github.Installation{
+				ID: github.Int(installationID),
+			},
+		},
+	}
+
+	err := g.PullRequestEvent(event)
+	if want := errors.New("could not find installation with ID 2"); err.Error() != want.Error() {
+		t.Errorf("expected error %q have %q", want, err)
+	}
+}
+
+func TestPullRequestEvent_disabled(t *testing.T) {
+	g, memDB := setup(t)
+
+	const installationID = 2
+
+	// Added but not enabled
+	_ = memDB.AddGHInstallation(installationID, 3, 4)
+
+	event := &github.PullRequestEvent{
+		Action: github.String("opened"),
+		Number: github.Int(1),
+		WebhookCommon: github.WebhookCommon{
+			Installation: &github.Installation{
+				ID: github.Int(installationID),
+			},
+		},
+	}
+
+	err := g.PullRequestEvent(event)
+	if want := errors.New("could not find installation with ID 2"); err.Error() != want.Error() {
+		t.Errorf("expected error %q have %q", want, err)
 	}
 }

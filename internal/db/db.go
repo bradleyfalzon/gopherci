@@ -5,12 +5,12 @@ import "time"
 // DB interface provides access to a persistent database.
 type DB interface {
 	// AddGHInstallation records a new installation.
-	AddGHInstallation(installationID int) error
+	AddGHInstallation(installationID, accountID, senderID int) error
 	// RemoveGHInstallation removes an installation.
-	RemoveGHInstallation(accountID int) error
+	RemoveGHInstallation(installationID int) error
 	// GetGHInstallation returns an installation for a given installationID, returns
 	// nil if no installation was found, or an error occurs.
-	GetGHInstallation(accountID int) (*GHInstallation, error)
+	GetGHInstallation(installationID int) (*GHInstallation, error)
 	// ListTools returns all tools. Returns nil if no tools were found, error will
 	// be non-nil if an error occurs.
 	ListTools() ([]Tool, error)
@@ -18,6 +18,8 @@ type DB interface {
 
 type GHInstallation struct {
 	InstallationID int
+	AccountID      int
+	SenderID       int
 	enabledAt      time.Time
 }
 

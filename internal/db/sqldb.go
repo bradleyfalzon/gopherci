@@ -27,9 +27,11 @@ func NewSQLDB(sqlDB *sql.DB, driverName string) (*SQLDB, error) {
 }
 
 // AddGHInstallation implements DB interface
-func (db *SQLDB) AddGHInstallation(installationID int) error {
+func (db *SQLDB) AddGHInstallation(installationID, accountID, senderID int) error {
 	// INSERT IGNORE so any duplicates are ignored
-	_, err := db.sqlx.Exec("INSERT IGNORE INTO gh_installations (installation_id) VALUES (?)", installationID)
+	_, err := db.sqlx.Exec("INSERT IGNORE INTO gh_installations (installation_id, account_id, sender_id) VALUES (?, ?, ?)",
+		installationID, accountID, senderID,
+	)
 	return err
 }
 
@@ -41,21 +43,26 @@ func (db *SQLDB) RemoveGHInstallation(installationID int) error {
 
 // GetGHInstallation implements DB interface
 func (db *SQLDB) GetGHInstallation(installationID int) (*GHInstallation, error) {
-	type ghinstall struct {
+	var row struct {
 		InstallationID int            `db:"installation_id"`
+		AccountID      int            `db:"account_id"`
+		SenderID       int            `db:"sender_id"`
 		EnabledAt      mysql.NullTime `db:"enabled_at"`
 	}
-	var i ghinstall
-	err := db.sqlx.Get(&i, "SELECT installation_id, enabled_at FROM gh_installations WHERE installation_id = ?", installationID)
+	err := db.sqlx.Get(&row, "SELECT installation_id, account_id, sender_id, enabled_at FROM gh_installations WHERE installation_id = ?", installationID)
 	switch {
 	case err == sql.ErrNoRows:
 		return nil, nil
 	case err != nil:
 		return nil, err
 	}
-	ghi := &GHInstallation{InstallationID: i.InstallationID}
-	if i.EnabledAt.Valid {
-		ghi.enabledAt = i.EnabledAt.Time
+	ghi := &GHInstallation{
+		InstallationID: row.InstallationID,
+		AccountID:      row.AccountID,
+		SenderID:       row.SenderID,
+	}
+	if row.EnabledAt.Valid {
+		ghi.enabledAt = row.EnabledAt.Time
 	}
 	return ghi, nil
 }
