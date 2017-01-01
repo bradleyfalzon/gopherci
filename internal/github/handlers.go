@@ -53,7 +53,7 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 	switch *e.Action {
 	case "created":
 		// Record the installation event in the database
-		err = g.db.AddGHInstallation(*e.Installation.ID)
+		err = g.db.AddGHInstallation(*e.Installation.ID, *e.Installation.Account.ID, *e.Sender.ID)
 	case "deleted":
 		// Remove the installation event from the database
 		err = g.db.RemoveGHInstallation(*e.Installation.ID)
@@ -69,10 +69,6 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	if e.Action == nil || *e.Action != "opened" {
 		return fmt.Errorf("ignoring PR #%v action: %q", *e.Number, *e.Action)
 	}
-	if e.Repo == nil || e.PullRequest == nil {
-		return fmt.Errorf("malformed PR webhook, no repo or pullrequest set")
-	}
-	pr := e.PullRequest
 
 	// Lookup installation
 	install, err := g.NewInstallation(*e.Installation.ID)
@@ -82,6 +78,11 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	if install == nil {
 		return fmt.Errorf("could not find installation with ID %v", *e.Installation.ID)
 	}
+
+	if e.Repo == nil || e.PullRequest == nil {
+		return fmt.Errorf("malformed PR webhook, no repo or pullrequest set")
+	}
+	pr := e.PullRequest
 
 	// Find tools for this repo
 	tools, err := g.db.ListTools()

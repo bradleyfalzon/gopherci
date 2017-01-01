@@ -5,7 +5,7 @@ import "time"
 // MockDB is an in-memory database repository implementing the DB interface
 // used for testing
 type MockDB struct {
-	installations map[int]bool // installationID -> exists
+	installations map[int]GHInstallation // installationID -> exists
 	err           error
 	Tools         []Tool
 }
@@ -16,7 +16,7 @@ var _ DB = (*MockDB)(nil)
 // NewMockDB returns an MockDB
 func NewMockDB() *MockDB {
 	return &MockDB{
-		installations: make(map[int]bool),
+		installations: make(map[int]GHInstallation),
 	}
 }
 
@@ -25,8 +25,12 @@ func (db *MockDB) ForceError(err error) {
 }
 
 // AddGHInstallation implements DB interface
-func (db *MockDB) AddGHInstallation(installationID int) error {
-	db.installations[installationID] = true
+func (db *MockDB) AddGHInstallation(installationID, accountID, senderID int) error {
+	db.installations[installationID] = GHInstallation{
+		InstallationID: installationID,
+		AccountID:      accountID,
+		SenderID:       senderID,
+	}
 	return db.err
 }
 
@@ -36,10 +40,18 @@ func (db *MockDB) RemoveGHInstallation(installationID int) error {
 	return db.err
 }
 
+// EnableGHInstallation enables a gh installation
+func (db *MockDB) EnableGHInstallation(installationID int) error {
+	install := db.installations[installationID]
+	install.enabledAt = time.Unix(1, 0)
+	db.installations[installationID] = install
+	return db.err
+}
+
 // GetGHInstallation implements DB interface
 func (db *MockDB) GetGHInstallation(installationID int) (*GHInstallation, error) {
-	if _, ok := db.installations[installationID]; ok {
-		return &GHInstallation{InstallationID: installationID, enabledAt: time.Unix(1, 0)}, db.err
+	if installation, ok := db.installations[installationID]; ok {
+		return &installation, db.err
 	}
 	return nil, db.err
 }

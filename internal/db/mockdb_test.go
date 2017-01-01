@@ -3,22 +3,26 @@ package db
 import (
 	"reflect"
 	"testing"
-	"time"
 )
 
 func TestMockDB(t *testing.T) {
 	db := NewMockDB()
 
-	const installationID = 2
+	const (
+		installationID = 2
+		accountID      = 3
+		senderID       = 4
+	)
 
-	err := db.AddGHInstallation(installationID)
+	err := db.AddGHInstallation(installationID, accountID, senderID)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
 
-	exp := &GHInstallation{
+	want := &GHInstallation{
 		InstallationID: installationID,
-		enabledAt:      time.Unix(1, 0),
+		AccountID:      accountID,
+		SenderID:       senderID,
 	}
 
 	installation, err := db.GetGHInstallation(installationID)
@@ -26,8 +30,8 @@ func TestMockDB(t *testing.T) {
 		t.Fatal("unexpected error:", err)
 	}
 
-	if !reflect.DeepEqual(exp, installation) {
-		t.Fatalf("exp: %#v, got: %#v", exp, installation)
+	if !reflect.DeepEqual(installation, want) {
+		t.Fatalf("Received incorrect installation\nhave: %#v\nwant: %#v", installation, want)
 	}
 
 	err = db.RemoveGHInstallation(installationID)
