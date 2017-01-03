@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -67,6 +68,61 @@ func TestPullRequestsService_Get(t *testing.T) {
 	}
 }
 
+func TestPullRequestsService_GetRawDiff(t *testing.T) {
+	setup()
+	defer teardown()
+	const rawStr = "@@diff content"
+
+	mux.HandleFunc("/repos/o/r/pulls/1", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		testHeader(t, r, "Accept", mediaTypeV3Diff)
+		fmt.Fprint(w, rawStr)
+	})
+
+	ret, _, err := client.PullRequests.GetRaw("o", "r", 1, RawOptions{Diff})
+	if err != nil {
+		t.Fatalf("PullRequests.GetRaw returned error: %v", err)
+	}
+
+	if ret != rawStr {
+		t.Errorf("PullRequests.GetRaw returned %s want %s", ret, rawStr)
+	}
+}
+
+func TestPullRequestsService_GetRawPatch(t *testing.T) {
+	setup()
+	defer teardown()
+	const rawStr = "@@patch content"
+
+	mux.HandleFunc("/repos/o/r/pulls/1", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		testHeader(t, r, "Accept", mediaTypeV3Patch)
+		fmt.Fprint(w, rawStr)
+	})
+
+	ret, _, err := client.PullRequests.GetRaw("o", "r", 1, RawOptions{Patch})
+	if err != nil {
+		t.Fatalf("PullRequests.GetRaw returned error: %v", err)
+	}
+
+	if ret != rawStr {
+		t.Errorf("PullRequests.GetRaw returned %s want %s", ret, rawStr)
+	}
+}
+
+func TestPullRequestsService_GetRawInvalid(t *testing.T) {
+	setup()
+	defer teardown()
+
+	_, _, err := client.PullRequests.GetRaw("o", "r", 1, RawOptions{100})
+	if err == nil {
+		t.Fatal("PullRequests.GetRaw should return error")
+	}
+	if !strings.Contains(err.Error(), "unsupported raw type") {
+		t.Error("PullRequests.GetRaw should return unsupported raw type error")
+	}
+}
+
 func TestPullRequestsService_Get_headAndBase(t *testing.T) {
 	setup()
 	defer teardown()
@@ -97,15 +153,21 @@ func TestPullRequestsService_Get_headAndBase(t *testing.T) {
 	}
 }
 
-func TestPullRequestService_Get_DiffURLAndPatchURL(t *testing.T) {
+func TestPullRequestsService_Get_urlFields(t *testing.T) {
 	setup()
 	defer teardown()
 
 	mux.HandleFunc("/repos/o/r/pulls/1", func(w http.ResponseWriter, r *http.Request) {
 		testMethod(t, r, "GET")
-		fmt.Fprint(w, `{"number":1, 
-			"diff_url": "https://github.com/octocat/Hello-World/pull/1347.diff", 
-			"patch_url": "https://github.com/octocat/Hello-World/pull/1347.patch"}`)
+		fmt.Fprint(w, `{"number":1,
+			"url": "https://api.github.com/repos/octocat/Hello-World/pulls/1347",
+			"html_url": "https://github.com/octocat/Hello-World/pull/1347",
+			"issue_url": "https://api.github.com/repos/octocat/Hello-World/issues/1347",
+			"statuses_url": "https://api.github.com/repos/octocat/Hello-World/statuses/6dcb09b5b57875f334f61aebed695e2e4193db5e",
+			"diff_url": "https://github.com/octocat/Hello-World/pull/1347.diff",
+			"patch_url": "https://github.com/octocat/Hello-World/pull/1347.patch",
+			"review_comments_url": "https://api.github.com/repos/octocat/Hello-World/pulls/1347/comments",
+			"review_comment_url": "https://api.github.com/repos/octocat/Hello-World/pulls/comments{/number}"}`)
 	})
 
 	pull, _, err := client.PullRequests.Get("o", "r", 1)
@@ -113,7 +175,18 @@ func TestPullRequestService_Get_DiffURLAndPatchURL(t *testing.T) {
 		t.Errorf("PullRequests.Get returned error: %v", err)
 	}
 
-	want := &PullRequest{Number: Int(1), DiffURL: String("https://github.com/octocat/Hello-World/pull/1347.diff"), PatchURL: String("https://github.com/octocat/Hello-World/pull/1347.patch")}
+	want := &PullRequest{
+		Number:            Int(1),
+		URL:               String("https://api.github.com/repos/octocat/Hello-World/pulls/1347"),
+		HTMLURL:           String("https://github.com/octocat/Hello-World/pull/1347"),
+		IssueURL:          String("https://api.github.com/repos/octocat/Hello-World/issues/1347"),
+		StatusesURL:       String("https://api.github.com/repos/octocat/Hello-World/statuses/6dcb09b5b57875f334f61aebed695e2e4193db5e"),
+		DiffURL:           String("https://github.com/octocat/Hello-World/pull/1347.diff"),
+		PatchURL:          String("https://github.com/octocat/Hello-World/pull/1347.patch"),
+		ReviewCommentsURL: String("https://api.github.com/repos/octocat/Hello-World/pulls/1347/comments"),
+		ReviewCommentURL:  String("https://api.github.com/repos/octocat/Hello-World/pulls/comments{/number}"),
+	}
+
 	if !reflect.DeepEqual(pull, want) {
 		t.Errorf("PullRequests.Get returned %+v, want %+v", pull, want)
 	}
@@ -346,7 +419,7 @@ func TestPullRequestsService_Merge(t *testing.T) {
 			}`)
 	})
 
-	options := &PullRequestOptions{Squash: true}
+	options := &PullRequestOptions{MergeMethod: "rebase"}
 	merge, _, err := client.PullRequests.Merge("o", "r", 1, "merging pull request", options)
 	if err != nil {
 		t.Errorf("PullRequests.Merge returned error: %v", err)
@@ -359,5 +432,55 @@ func TestPullRequestsService_Merge(t *testing.T) {
 	}
 	if !reflect.DeepEqual(merge, want) {
 		t.Errorf("PullRequests.Merge returned %+v, want %+v", merge, want)
+	}
+}
+
+// Test that different merge options produce expected PUT requests. See issue https://github.com/google/go-github/issues/500.
+func TestPullRequestsService_Merge_options(t *testing.T) {
+	setup()
+	defer teardown()
+
+	tests := []struct {
+		options  *PullRequestOptions
+		wantBody string
+	}{
+		{
+			options:  nil,
+			wantBody: `{"commit_message":"merging pull request"}`,
+		},
+		{
+			options:  &PullRequestOptions{},
+			wantBody: `{"commit_message":"merging pull request"}`,
+		},
+		{
+			options:  &PullRequestOptions{MergeMethod: "rebase"},
+			wantBody: `{"commit_message":"merging pull request","merge_method":"rebase"}`,
+		},
+		{
+			options:  &PullRequestOptions{SHA: "6dcb09b5b57875f334f61aebed695e2e4193db5e"},
+			wantBody: `{"commit_message":"merging pull request","sha":"6dcb09b5b57875f334f61aebed695e2e4193db5e"}`,
+		},
+		{
+			options: &PullRequestOptions{
+				CommitTitle: "Extra detail",
+				SHA:         "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+				MergeMethod: "squash",
+			},
+			wantBody: `{"commit_message":"merging pull request","commit_title":"Extra detail","merge_method":"squash","sha":"6dcb09b5b57875f334f61aebed695e2e4193db5e"}`,
+		},
+	}
+
+	for i, test := range tests {
+		madeRequest := false
+		mux.HandleFunc(fmt.Sprintf("/repos/o/r/pulls/%d/merge", i), func(w http.ResponseWriter, r *http.Request) {
+			testMethod(t, r, "PUT")
+			testHeader(t, r, "Accept", mediaTypeSquashPreview)
+			testBody(t, r, test.wantBody+"\n")
+			madeRequest = true
+		})
+		_, _, _ = client.PullRequests.Merge("o", "r", i, "merging pull request", test.options)
+		if !madeRequest {
+			t.Errorf("%d: PullRequests.Merge(%#v): expected request was not made", i, test.options)
+		}
 	}
 }
