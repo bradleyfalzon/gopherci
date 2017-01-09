@@ -275,10 +275,8 @@ index 0000000..6362395
 		Repo: &github.Repository{
 			URL: github.String("repo-url"),
 		},
-		WebhookCommon: github.WebhookCommon{
-			Installation: &github.Installation{
-				ID: github.Int(installationID),
-			},
+		Installation: &github.Installation{
+			ID: github.Int(installationID),
 		},
 	}
 
@@ -302,10 +300,8 @@ func TestPullRequestEvent_noInstall(t *testing.T) {
 	event := &github.PullRequestEvent{
 		Action: github.String("opened"),
 		Number: github.Int(1),
-		WebhookCommon: github.WebhookCommon{
-			Installation: &github.Installation{
-				ID: github.Int(installationID),
-			},
+		Installation: &github.Installation{
+			ID: github.Int(installationID),
 		},
 	}
 
@@ -326,10 +322,8 @@ func TestPullRequestEvent_disabled(t *testing.T) {
 	event := &github.PullRequestEvent{
 		Action: github.String("opened"),
 		Number: github.Int(1),
-		WebhookCommon: github.WebhookCommon{
-			Installation: &github.Installation{
-				ID: github.Int(installationID),
-			},
+		Installation: &github.Installation{
+			ID: github.Int(installationID),
 		},
 	}
 
