@@ -6,7 +6,7 @@ Status](https://coveralls.io/repos/github/bradleyfalzon/gopherci/badge.svg?branc
 
 # License
 
-GNU Affero General Public License see [LICENSE](LICENSE).
+BSD 2-clause see [LICENSE](LICENSE).
 
 # Contributing
 
