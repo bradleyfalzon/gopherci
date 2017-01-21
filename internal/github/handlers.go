@@ -91,7 +91,7 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	}
 
 	// Set the CI status API to pending
-	err = install.SetStatus(*pr.StatusesURL, StatusStatePending)
+	err = install.SetStatus(*pr.StatusesURL, StatusStatePending, "In progress")
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("could not set status to pending for %v", *pr.StatusesURL))
 	}
@@ -107,7 +107,7 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 
 	issues, err := analyser.Analyse(g.analyser, tools, config)
 	if err != nil {
-		if err = install.SetStatus(*pr.StatusesURL, StatusStateError); err != nil {
+		if err = install.SetStatus(*pr.StatusesURL, StatusStateError, "Internal error"); err != nil {
 			log.Printf("could not set status to error for %v", *pr.StatusesURL)
 		}
 		return errors.Wrap(err, fmt.Sprintf("could not analyse %v pr %v", *e.Repo.URL, *e.Number))
@@ -119,8 +119,13 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 		return errors.Wrapf(err, "could not write comment on %v", *pr.HTMLURL)
 	}
 
+	statusDesc := fmt.Sprintf("Found %v issues", len(issues))
+	if len(issues) == 0 {
+		statusDesc += ` \ʕ◔ϖ◔ʔ/`
+	}
+
 	// Set the CI status API to success
-	if err := install.SetStatus(*pr.StatusesURL, StatusStateSuccess); err != nil {
+	if err := install.SetStatus(*pr.StatusesURL, StatusStateSuccess, statusDesc); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("could not set status to success for %v", *pr.StatusesURL))
 	}
 	return nil

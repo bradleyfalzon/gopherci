@@ -47,26 +47,26 @@ func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 	return &Installation{client: client}, nil
 }
 
+// statusState is the state of a GitHub Status API as defined in
+// https://developer.github.com/v3/repos/statuses/
 type StatusState string
 
 const (
 	StatusStatePending StatusState = "pending"
-	StatusStateSuccess             = "success"
-	StatusStateError               = "error"
-	StatusStateFailure             = "failure"
+	StatusStateSuccess StatusState = "success"
+	StatusStateError   StatusState = "error"
+	StatusStateFailure StatusState = "failure"
 )
 
 // SetStatus sets the CI Status API
-func (i *Installation) SetStatus(statusURL string, status StatusState) error {
-
-	// Set the CI status API to pending
+func (i *Installation) SetStatus(statusURL string, status StatusState, description string) error {
 	s := struct {
 		State       string `json:"state,omitempty"`
 		TargetURL   string `json:"target_url,omitempty"`
 		Description string `json:"description,omitempty"`
 		Context     string `json:"context,omitempty"`
 	}{
-		string(status), "", "static analysis of modified lines", "ci/gopherci",
+		string(status), "", description, "ci/gopherci",
 	}
 	log.Printf("status: %#v", status)
 
