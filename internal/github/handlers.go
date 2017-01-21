@@ -114,7 +114,10 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	}
 
 	// Post issues as comments on github pr
-	install.WriteIssues(*e.Number, *pr.Head.SHA, issues)
+	err = install.WriteIssues(*pr.Base.Repo.Owner.Login, *pr.Base.Repo.Name, *e.Number, *pr.Head.SHA, issues)
+	if err != nil {
+		return errors.Wrapf(err, "could not write comment on %v", *pr.HTMLURL)
+	}
 
 	// Set the CI status API to success
 	if err := install.SetStatus(*pr.StatusesURL, StatusStateSuccess); err != nil {

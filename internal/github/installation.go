@@ -91,7 +91,10 @@ func (i *Installation) SetStatus(statusURL string, status StatusState) error {
 	return nil
 }
 
-func (i *Installation) WriteIssues(prNumber int, commit string, issues []analyser.Issue) {
+// WriteIssues takes a slice of issues and creates a pull request comment for
+// each issue on a given owner, repo, pr and commit hash. Returns on the first
+// error encountered.
+func (i *Installation) WriteIssues(owner, repo string, prNumber int, commit string, issues []analyser.Issue) error {
 	// TODO make this idempotent, so don't post the same issue twice
 	// which may occur when we support additional commits to a PR (synchronize
 	// api event)
@@ -102,10 +105,10 @@ func (i *Installation) WriteIssues(prNumber int, commit string, issues []analyse
 			Path:     github.String(issue.File),
 			Position: github.Int(issue.HunkPos),
 		}
-
-		cmt, resp, err := i.client.PullRequests.CreateComment("bf-test", "gopherci-dev1", prNumber, comment)
-		log.Print("cmt:", cmt)
-		log.Print("resp:", resp)
-		log.Print("err:", err)
+		_, _, err := i.client.PullRequests.CreateComment(owner, repo, prNumber, comment)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
