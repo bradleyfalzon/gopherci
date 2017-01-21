@@ -181,6 +181,9 @@ func TestPullRequestEvent(t *testing.T) {
 		expectedCmtPath = "main.go"
 		expectedCmtPos  = 1
 		expectedCmtSHA  = "error"
+		expectedOwner   = "owner"
+		expectedRepo    = "repo"
+		expectedPR      = 3
 	)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -214,7 +217,7 @@ index 0000000..6362395
 		case "/installations/2/access_tokens":
 			// respond with any token to installation transport
 			fmt.Fprintln(w, "{}")
-		case "/repos/bf-test/gopherci-dev1/pulls/1/comments":
+		case fmt.Sprintf("/repos/%v/%v/pulls/%v/comments", expectedOwner, expectedRepo, expectedPR):
 			expected := github.PullRequestComment{
 				Body:     github.String(expectedCmtBody),
 				Path:     github.String(expectedCmtPath),
@@ -254,13 +257,18 @@ index 0000000..6362395
 
 	event := &github.PullRequestEvent{
 		Action: github.String("opened"),
-		Number: github.Int(1),
+		Number: github.Int(expectedPR),
 		PullRequest: &github.PullRequest{
+			HTMLURL:     github.String("https://github.com.au/owner/repo/pulls/3"),
 			StatusesURL: github.String(ts.URL + "/status-url"),
 			DiffURL:     github.String(expectedConfig.DiffURL),
 			Base: &github.PullRequestBranch{
 				Repo: &github.Repository{
 					CloneURL: github.String(expectedConfig.BaseURL),
+					Name:     github.String(expectedRepo),
+					Owner: &github.User{
+						Login: github.String(expectedOwner),
+					},
 				},
 				Ref: github.String(expectedConfig.BaseBranch),
 			},
