@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
@@ -168,9 +169,11 @@ func queueListen(ctx context.Context, queueChan <-chan interface{}, g *github.Gi
 	for {
 		select {
 		case <-ctx.Done():
+			log.Println("queueListen: returning from queueListen")
 			return
 		case job := <-queueChan:
-			log.Printf("main: reading job type %T", job)
+			start := time.Now()
+			log.Printf("queueListen: reading job type %T", job)
 			var err error
 			switch e := job.(type) {
 			case *gh.PullRequestEvent:
@@ -179,8 +182,9 @@ func queueListen(ctx context.Context, queueChan <-chan interface{}, g *github.Gi
 				err = fmt.Errorf("unknown queue job type %T", e)
 			}
 			if err != nil {
-				log.Println("queue processing error:", err)
+				log.Println("queueListen: processing error:", err)
 			}
+			log.Printf("queueListen: finished processing in %v", time.Since(start))
 		}
 	}
 }
