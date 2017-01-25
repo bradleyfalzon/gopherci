@@ -64,7 +64,8 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 // PullRequestEvent processes as Pull Request from GitHub.
 func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	if e.Action == nil || *e.Action != "opened" {
-		return fmt.Errorf("ignoring PR #%v action: %q", *e.Number, *e.Action)
+		log.Printf("ignoring PR #%v action: %q", *e.Number, *e.Action)
+		return nil
 	}
 
 	// Lookup installation
