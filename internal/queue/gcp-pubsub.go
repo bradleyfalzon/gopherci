@@ -83,8 +83,8 @@ func NewGCPPubSubQueue(ctx context.Context, wg *sync.WaitGroup, c chan<- interfa
 
 	// Close iterator when context closes
 	go func() {
-		log.Println("GCPPubSubQueue: closing")
 		<-q.ctx.Done()
+		log.Println("GCPPubSubQueue: closing")
 		itr.Stop()
 		client.Close()
 	}()
