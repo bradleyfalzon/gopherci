@@ -83,6 +83,7 @@ func NewGCPPubSubQueue(ctx context.Context, wg *sync.WaitGroup, c chan<- interfa
 
 	// Close iterator when context closes
 	go func() {
+		log.Println("GCPPubSubQueue: closing")
 		<-q.ctx.Done()
 		itr.Stop()
 		client.Close()
@@ -131,11 +132,13 @@ func (q *GCPPubSubQueue) listen(wg *sync.WaitGroup, itr *pubsub.MessageIterator)
 			time.Sleep(3 * time.Second) // back-off
 			continue
 		}
+		log.Printf("GCPPubSubQueue: processing ID %v, published at %v", msg.ID, msg.PublishTime)
+
 		// Acknowledge the job now, anything else that could fail by this instance
 		// will fail in others.
 		msg.Done(true)
 
-		log.Printf("GCPPubSubQueue: processing ID %v, published at %v", msg.ID, msg.PublishTime)
+		log.Printf("GCPPubSubQueue: ack'd ID %v", msg.ID)
 
 		reader := bytes.NewReader(msg.Data)
 		dec := gob.NewDecoder(reader)
@@ -145,7 +148,9 @@ func (q *GCPPubSubQueue) listen(wg *sync.WaitGroup, itr *pubsub.MessageIterator)
 			log.Println("GCPPubSubQueue: could not decode job:", err)
 			continue
 		}
+		log.Printf("GCPPubSubQueue: adding ID %v to job channel", msg.ID)
 		q.c <- job.Job
+		log.Printf("GCPPubSubQueue: successfully added ID %v to job queue", msg.ID)
 	}
 }
 

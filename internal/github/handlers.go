@@ -31,13 +31,10 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("github: parsed webhook event: %T", event)
 
-	log.Printf("event: %#v", event)
-
 	switch e := event.(type) {
 	case *github.IntegrationInstallationEvent:
 		err = g.integrationInstallationEvent(e)
 	case *github.PullRequestEvent:
-		log.Printf("prevent: %#v", e.Installation)
 		err = g.queuer.Queue(e)
 	}
 	if err != nil {
@@ -67,7 +64,8 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 // PullRequestEvent processes as Pull Request from GitHub.
 func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	if e.Action == nil || *e.Action != "opened" {
-		return fmt.Errorf("ignoring PR #%v action: %q", *e.Number, *e.Action)
+		log.Printf("ignoring PR #%v action: %q", *e.Number, *e.Action)
+		return nil
 	}
 
 	// Lookup installation
