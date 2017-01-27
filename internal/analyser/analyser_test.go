@@ -58,11 +58,19 @@ index 0000000..6362395
 	}
 
 	tools := []db.Tool{
-		{Name: "Name", Path: "tool", Args: "-flag %BASE_BRANCH% ./..."},
+		{Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
+		{Name: "Name2", Path: "tool2"},
 	}
 
 	analyser := &mockAnalyser{
-		ExecuteOut: [][]byte{{}, {}, {}, []byte(`main.go:1: error`)},
+		ExecuteOut: [][]byte{
+			{}, // git clone
+			{}, // git fetch
+			{}, // install-deps.sh
+			[]byte(`/go/src/gopherci`),                   // pwd
+			[]byte("main.go:1: error1"),                  // tool 1
+			[]byte("/go/src/gopherci/main.go:1: error2"), // tool 2 output abs paths
+		},
 	}
 
 	issues, err := Analyse(analyser, tools, cfg)
@@ -70,7 +78,10 @@ index 0000000..6362395
 		t.Fatal("unexpected error:", err)
 	}
 
-	expected := []Issue{{File: "main.go", HunkPos: 1, Issue: "Name: error"}}
+	expected := []Issue{
+		{File: "main.go", HunkPos: 1, Issue: "Name1: error1"},
+		{File: "main.go", HunkPos: 1, Issue: "Name2: error2"},
+	}
 	if !reflect.DeepEqual(expected, issues) {
 		t.Errorf("expected issues:\n%+v\ngot:\n%+v", expected, issues)
 	}
@@ -87,7 +98,9 @@ index 0000000..6362395
 		{"git", "clone", "--branch", "head-branch", "--depth", "1", "--single-branch", "head-url", "."},
 		{"git", "fetch", cfg.BaseURL, cfg.BaseBranch},
 		{"install-deps.sh"},
-		{"tool", "-flag", "FETCH_HEAD", "./..."},
+		{"pwd"},
+		{"tool1", "-flag", "FETCH_HEAD", "./..."},
+		{"tool2"},
 	}
 
 	if !reflect.DeepEqual(analyser.Executed, expectedArgs) {

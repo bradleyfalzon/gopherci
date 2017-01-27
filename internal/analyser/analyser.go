@@ -104,6 +104,16 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 	}
 	log.Printf("install-deps.sh output: %s", bytes.TrimSpace(out))
 
+	// get the base package working directory, used by revgrep to change absolute
+	// path for the filename in an issue (used by some tools) to relative (used by
+	// patch).
+	args = []string{"pwd"}
+	out, err = exec.Execute(args)
+	if err != nil {
+		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+	}
+	pwd := string(bytes.TrimSpace(out))
+
 	var issues []Issue
 	for _, tool := range tools {
 		args := []string{tool.Path}
@@ -122,9 +132,10 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 		log.Printf("%v output:\n%s", tool.Name, out)
 
 		checker := revgrep.Checker{
-			Patch:  bytes.NewReader(patch),
-			Regexp: tool.Regexp,
-			Debug:  os.Stdout,
+			Patch:   bytes.NewReader(patch),
+			Regexp:  tool.Regexp,
+			Debug:   os.Stdout,
+			AbsPath: pwd,
 		}
 
 		revIssues, err := checker.Check(bytes.NewReader(out), ioutil.Discard)
