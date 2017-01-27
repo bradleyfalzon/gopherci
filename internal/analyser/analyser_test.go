@@ -62,7 +62,7 @@ index 0000000..6362395
 	}
 
 	analyser := &mockAnalyser{
-		ExecuteOut: [][]byte{{}, {}, []byte(`main.go:1: error`)},
+		ExecuteOut: [][]byte{{}, {}, {}, []byte(`main.go:1: error`)},
 	}
 
 	issues, err := Analyse(analyser, tools, cfg)
@@ -86,6 +86,7 @@ index 0000000..6362395
 	expectedArgs := [][]string{
 		{"git", "clone", "--branch", "head-branch", "--depth", "1", "--single-branch", "head-url", "."},
 		{"git", "fetch", cfg.BaseURL, cfg.BaseBranch},
+		{"install-deps.sh"},
 		{"tool", "-flag", "FETCH_HEAD", "./..."},
 	}
 

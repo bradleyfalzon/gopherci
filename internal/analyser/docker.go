@@ -13,7 +13,9 @@ import (
 
 const (
 	stopContainerTimeout = 1
-	DockerDefaultImage   = "bradleyfalzon/gopherci-env:latest"
+	// DockerDefaultImage defines the default docker image that can be used
+	// to run checks.
+	DockerDefaultImage = "gopherci/gopherci-env:latest"
 )
 
 // Docker is an Analyser that provides an Executer to build projects inside

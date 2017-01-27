@@ -80,28 +80,29 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 	if err != nil {
 		return nil, errors.Wrap(err, "analyser could create new executer")
 	}
-	log.Println("analyser created new environment")
 
 	// clone repo
 	// TODO check out https://godoc.org/golang.org/x/tools/go/vcs to be agnostic
 	args := []string{"git", "clone", "--branch", config.HeadBranch, "--depth", "1", "--single-branch", config.HeadURL, "."}
-	log.Println("excuting:", args)
 	out, err := exec.Execute(args)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 	}
-	log.Println("git clone success")
 
 	// fetch base/upstream as some tools (apicompat) needs it
 	args = []string{"git", "fetch", config.BaseURL, config.BaseBranch}
-	log.Println("excuting:", args)
 	out, err = exec.Execute(args)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 	}
-	log.Println("fetch base success")
 
-	// fetch dependencies, some static analysis tools require building a project
+	// install dependencies, some static analysis tools require building a project
+	args = []string{"install-deps.sh"}
+	out, err = exec.Execute(args)
+	if err != nil {
+		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+	}
+	log.Printf("install-deps.sh output: %s", bytes.TrimSpace(out))
 
 	var issues []Issue
 	for _, tool := range tools {
@@ -114,7 +115,6 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 			}
 			args = append(args, arg)
 		}
-		log.Printf("executing tool: %v, args: %v", tool.Name, args)
 		// ignore errors, often it's about the exit status
 		// TODO check these errors better, other static analysis tools check the code
 		// explicitly or at least don't ignore it
