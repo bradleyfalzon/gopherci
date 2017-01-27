@@ -10,7 +10,7 @@ env:
     - GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcloud-GopherCI-dev.json
 before_install:
     - openssl aes-256-cbc -K $encrypted_870f8d7239ea_key -iv $encrypted_870f8d7239ea_iv -in GopherCI-dev-81e88eb7fa6e.json.enc -out /tmp/gcloud-GopherCI-dev.json -d
-    - docker pull bradleyfalzon/gopherci-env:latest
+    - docker pull gopherci/gopherci-env:latest
     - go get github.com/mattn/goveralls
     - go get golang.org/x/tools/cmd/cover
 script:

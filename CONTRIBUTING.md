@@ -28,7 +28,7 @@ instead of the default:
     - GCPPubSub: a Google Service Account with at least the `PubSub Admin` role, ensure
         `GOOGLE_APPLICATION_CREDENTIALS=file.json` is set.
 - Analyser
-    - Docker: Running Docker daemon and image `bradleyfalzon/gopherci-env:latest` pulled.
+    - Docker: Running Docker daemon and image `gopherci/gopherci-env:latest` pulled.
 
 # Test GitHub Integration
 
