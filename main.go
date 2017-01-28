@@ -154,8 +154,9 @@ func main() {
 
 	// Listen
 	log.Println("main: listening on", srv.Addr)
-	if err := srv.ListenAndServe(); err != nil {
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Println("main: http server error:", err)
+		cancelFunc()
 	}
 
 	// Wait for current item in queue to finish
