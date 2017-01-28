@@ -19,7 +19,7 @@ func TestFileSystem(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	exec, err := fs.NewExecuter()
+	exec, err := fs.NewExecuter("github.com/gopherci/gopherci")
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -36,6 +36,16 @@ func TestFileSystem(t *testing.T) {
 
 	if want := gopath + " " + os.Getenv("PATH") + "\n"; want != string(out) {
 		t.Errorf("\nwant %s\nhave %s", want, out)
+	}
+
+	out, err = exec.Execute([]string{"pwd"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	// Ensure current working directory is project path
+	if want := gopath + "/src/github.com/gopherci/gopherci\n"; want != string(out) {
+		t.Errorf("\nwant %q\nhave %q", want, out)
 	}
 
 	err = exec.Stop()

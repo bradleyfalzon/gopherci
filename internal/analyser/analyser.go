@@ -19,10 +19,13 @@ const (
 	ArgBaseBranch = "%BASE_BRANCH%"
 )
 
-// Analyser analyses a repository and branch, returns issues found in patch
-// or an error.
+// An Analyser is builds an isolated execution environment to run checks in.
+// It should provide isolation from other environments and support being
+// called concurrently.
 type Analyser interface {
-	NewExecuter() (Executer, error)
+	// NewExecuter returns an Executer with the working directory set to
+	// $GOPATH/src/<goSrcPath>.
+	NewExecuter(goSrcPath string) (Executer, error)
 }
 
 // Config hold configuration options for use in analyser. All options
@@ -38,6 +41,8 @@ type Config struct {
 	HeadBranch string
 	// DiffURL is the URL containing the unified diff of the changes.
 	DiffURL string
+	// GoSrcPath is the repository's path when placed in $GOPATH/src.
+	GoSrcPath string
 }
 
 // Issue contains file, position and string describing a single issue.
@@ -59,7 +64,7 @@ type Executer interface {
 	Stop() error
 }
 
-// Analyse downloads a repository set in config in an envrionment provided by
+// Analyse downloads a repository set in config in an environment provided by
 // analyser, running the series of tools. Returns issues from tools that have
 // are likely to have been caused by a change.
 func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error) {
@@ -76,7 +81,7 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 	}
 
 	// Get a new executer/environment to execute in
-	exec, err := analyser.NewExecuter()
+	exec, err := analyser.NewExecuter(config.GoSrcPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "analyser could create new executer")
 	}

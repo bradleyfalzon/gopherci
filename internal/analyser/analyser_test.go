@@ -19,7 +19,7 @@ type mockAnalyser struct {
 var _ Analyser = &mockAnalyser{}
 var _ Executer = &mockAnalyser{}
 
-func (a *mockAnalyser) NewExecuter() (Executer, error) {
+func (a *mockAnalyser) NewExecuter(_ string) (Executer, error) {
 	// Return itself
 	return a, nil
 }

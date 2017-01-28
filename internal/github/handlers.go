@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/google/go-github/github"
@@ -101,6 +102,7 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 		HeadURL:    *pr.Head.Repo.CloneURL,
 		HeadBranch: *pr.Head.Ref,
 		DiffURL:    *pr.DiffURL,
+		GoSrcPath:  stripScheme(*pr.Base.Repo.HTMLURL),
 	}
 
 	issues, err := analyser.Analyse(g.analyser, tools, config)
@@ -127,4 +129,9 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 		return errors.Wrap(err, fmt.Sprintf("could not set status to success for %v", *pr.StatusesURL))
 	}
 	return nil
+}
+
+// stripScheme removes the scheme/protocol and :// from a URL.
+func stripScheme(url string) string {
+	return regexp.MustCompile(`[a-zA-Z0-9+.-]+://`).ReplaceAllString(url, "")
 }

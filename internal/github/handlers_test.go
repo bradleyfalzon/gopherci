@@ -48,10 +48,13 @@ kGTL0A6/0yAu9qQZlFbaD5bWhQo7eyx63u4hZGppBhkTSPikOYUPCH8=
 -----END RSA PRIVATE KEY-----`)
 
 type mockAnalyser struct {
-	executed int
+	goSrcPath string
 }
 
-func (a *mockAnalyser) NewExecuter() (analyser.Executer, error) { return a, nil }
+func (a *mockAnalyser) NewExecuter(goSrcPath string) (analyser.Executer, error) {
+	a.goSrcPath = goSrcPath
+	return a, nil
+}
 func (a *mockAnalyser) Execute(args []string) (out []byte, err error) {
 	if len(args) > 0 && args[0] == "tool" {
 		return []byte(`main.go:1: error`), nil
@@ -62,8 +65,9 @@ func (a *mockAnalyser) Stop() error { return nil }
 
 const webhookSecret = "ede9aa6b6e04fafd53f7460fb75644302e249177"
 
-func setup(t *testing.T) (*GitHub, *db.MockDB) {
+func setup(t *testing.T) (*GitHub, *mockAnalyser, *db.MockDB) {
 	memDB := db.NewMockDB()
+	mockAnalyser := &mockAnalyser{}
 	var (
 		wg sync.WaitGroup
 		c  = make(chan interface{})
@@ -71,11 +75,11 @@ func setup(t *testing.T) (*GitHub, *db.MockDB) {
 	queue := queue.NewMemoryQueue(context.Background(), &wg, c)
 
 	// New GitHub
-	g, err := New(&mockAnalyser{}, memDB, queue, 1, integrationKey, webhookSecret)
+	g, err := New(mockAnalyser, memDB, queue, 1, integrationKey, webhookSecret)
 	if err != nil {
 		t.Fatal("could not initialise GitHub:", err)
 	}
-	return g, memDB
+	return g, mockAnalyser, memDB
 }
 
 func TestWebhookHandler(t *testing.T) {
@@ -90,7 +94,7 @@ func TestWebhookHandler(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		g, _ := setup(t)
+		g, _, _ := setup(t)
 		body := bytes.NewBufferString(`{"key":"value"}`)
 		r, err := http.NewRequest("POST", "https://example.com", body)
 		if err != nil {
@@ -108,7 +112,7 @@ func TestWebhookHandler(t *testing.T) {
 }
 
 func TestIntegrationInstallationEvent(t *testing.T) {
-	g, memDB := setup(t)
+	g, _, memDB := setup(t)
 
 	const (
 		installationID = 2
@@ -162,7 +166,7 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 }
 
 func TestPullRequestEvent(t *testing.T) {
-	g, memDB := setup(t)
+	g, mockAnalyser, memDB := setup(t)
 
 	var (
 		statePending  bool
@@ -177,13 +181,14 @@ func TestPullRequestEvent(t *testing.T) {
 			HeadURL:    "head-repo-url",
 			HeadBranch: "head-branch",
 		}
-		expectedCmtBody = "Name: error"
-		expectedCmtPath = "main.go"
-		expectedCmtPos  = 1
-		expectedCmtSHA  = "error"
-		expectedOwner   = "owner"
-		expectedRepo    = "repo"
-		expectedPR      = 3
+		expectedCmtBody   = "Name: error"
+		expectedCmtPath   = "main.go"
+		expectedCmtPos    = 1
+		expectedCmtSHA    = "error"
+		expectedOwner     = "owner"
+		expectedRepo      = "repo"
+		expectedPR        = 3
+		expectedGoSrcPath = "gitub.com/owner/repo"
 	)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -264,6 +269,7 @@ index 0000000..6362395
 			DiffURL:     github.String(expectedConfig.DiffURL),
 			Base: &github.PullRequestBranch{
 				Repo: &github.Repository{
+					HTMLURL:  github.String("https://" + expectedGoSrcPath),
 					CloneURL: github.String(expectedConfig.BaseURL),
 					Name:     github.String(expectedRepo),
 					Owner: &github.User{
@@ -298,11 +304,13 @@ index 0000000..6362395
 		t.Errorf("did not post comment")
 	case !stateSuccess:
 		t.Errorf("did not set status state to success")
+	case mockAnalyser.goSrcPath != expectedGoSrcPath:
+		t.Errorf("goSrcPath have: %q want: %q", mockAnalyser.goSrcPath, expectedGoSrcPath)
 	}
 }
 
 func TestPullRequestEvent_noInstall(t *testing.T) {
-	g, _ := setup(t)
+	g, _, _ := setup(t)
 
 	const installationID = 2
 	event := &github.PullRequestEvent{
@@ -320,7 +328,7 @@ func TestPullRequestEvent_noInstall(t *testing.T) {
 }
 
 func TestPullRequestEvent_disabled(t *testing.T) {
-	g, memDB := setup(t)
+	g, _, memDB := setup(t)
 
 	const installationID = 2
 

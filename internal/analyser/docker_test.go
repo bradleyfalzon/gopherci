@@ -11,7 +11,7 @@ func TestDocker(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	exec, err := docker.NewExecuter()
+	exec, err := docker.NewExecuter("github.com/gopherci/gopherci")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -22,7 +22,7 @@ func TestDocker(t *testing.T) {
 	}
 
 	// Ensure current working directory is project path
-	if want := "/go/src/gopherci\n"; want != string(out) {
+	if want := "/go/src/github.com/gopherci/gopherci\n"; want != string(out) {
 		t.Errorf("\nwant %q\nhave %q", want, out)
 	}
 
