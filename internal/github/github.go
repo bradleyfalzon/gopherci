@@ -9,11 +9,6 @@ import (
 	"github.com/bradleyfalzon/gopherci/internal/queue"
 )
 
-const (
-	// acceptHeader is the GitHub Integrations Preview Accept header.
-	acceptHeader = "application/vnd.github.machine-man-preview+json"
-)
-
 // GitHub is the type gopherci uses to interract with github.com.
 type GitHub struct {
 	db             db.DB
