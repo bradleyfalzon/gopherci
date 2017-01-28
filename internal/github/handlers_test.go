@@ -349,6 +349,23 @@ func TestPullRequestEvent_disabled(t *testing.T) {
 	}
 }
 
+func TestStripScheme(t *testing.T) {
+	tests := []struct {
+		url  string
+		want string
+	}{
+		{"HTTPS://github.com/owner/repo", "github.com/owner/repo"},
+		{"https://github.com/owner/repo", "github.com/owner/repo"},
+		{"azAZ09+.-://github.com/owner/repo", "github.com/owner/repo"},
+	}
+	for _, test := range tests {
+		have := stripScheme(test.url)
+		if have != test.want {
+			t.Errorf("have: %v want: %v", have, test.want)
+		}
+	}
+}
+
 func TestStatusDesc(t *testing.T) {
 	tests := []struct {
 		issues []analyser.Issue
