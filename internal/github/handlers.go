@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/google/go-github/github"
@@ -119,10 +120,7 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 		return errors.Wrapf(err, "could not write comment on %v", *pr.HTMLURL)
 	}
 
-	statusDesc := fmt.Sprintf("Found %v issues", len(issues))
-	if len(issues) == 0 {
-		statusDesc += ` \ʕ◔ϖ◔ʔ/`
-	}
+	statusDesc := statusDesc(issues)
 
 	// Set the CI status API to success
 	if err := install.SetStatus(*pr.StatusesURL, StatusStateSuccess, statusDesc); err != nil {
@@ -134,4 +132,16 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 // stripScheme removes the scheme/protocol and :// from a URL.
 func stripScheme(url string) string {
 	return regexp.MustCompile(`[a-zA-Z0-9+.-]+://`).ReplaceAllString(url, "")
+}
+
+// statusDesc builds a status description based on issues.
+func statusDesc(issues []analyser.Issue) string {
+	desc := fmt.Sprintf("Found %d issues", len(issues))
+	switch len(issues) {
+	case 0:
+		return desc + ` \ʕ◔ϖ◔ʔ/`
+	case 1:
+		return strings.TrimRight(desc, "s")
+	}
+	return desc
 }

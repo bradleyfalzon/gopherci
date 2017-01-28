@@ -348,3 +348,38 @@ func TestPullRequestEvent_disabled(t *testing.T) {
 		t.Errorf("expected error %q have %q", want, err)
 	}
 }
+
+func TestStripScheme(t *testing.T) {
+	tests := []struct {
+		url  string
+		want string
+	}{
+		{"HTTPS://github.com/owner/repo", "github.com/owner/repo"},
+		{"https://github.com/owner/repo", "github.com/owner/repo"},
+		{"azAZ09+.-://github.com/owner/repo", "github.com/owner/repo"},
+	}
+	for _, test := range tests {
+		have := stripScheme(test.url)
+		if have != test.want {
+			t.Errorf("have: %v want: %v", have, test.want)
+		}
+	}
+}
+
+func TestStatusDesc(t *testing.T) {
+	tests := []struct {
+		issues []analyser.Issue
+		want   string
+	}{
+		{[]analyser.Issue{{}, {}}, "Found 2 issues"},
+		{[]analyser.Issue{{}}, "Found 1 issue"},
+		{[]analyser.Issue{}, `Found 0 issues \ʕ◔ϖ◔ʔ/`},
+	}
+
+	for _, test := range tests {
+		have := statusDesc(test.issues)
+		if have != test.want {
+			t.Errorf("have: %v want: %v", have, test.want)
+		}
+	}
+}
