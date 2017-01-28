@@ -30,23 +30,23 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("github: parsed webhook event: %T", event)
-
 	switch e := event.(type) {
 	case *github.IntegrationInstallationEvent:
+		log.Printf("github: integration event: %v, installation id: %v", *e.Action, *e.Installation.ID)
 		err = g.integrationInstallationEvent(e)
 	case *github.PullRequestEvent:
+		log.Printf("github: pull request event: %v, installation id: %v", *e.Action, *e.Installation.ID)
 		err = g.queuer.Queue(e)
+	default:
+		log.Printf("github: ignored webhook event: %T", event)
 	}
 	if err != nil {
 		log.Println("github: event handler error:", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationEvent) error {
-	log.Printf("integration event: %v, installation id: %v, on account %v, by account %v",
-		*e.Action, *e.Installation.ID, *e.Installation.Account.Login, *e.Sender.Login,
-	)
 	var err error
 	switch *e.Action {
 	case "created":
