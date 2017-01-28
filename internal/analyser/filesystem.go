@@ -36,9 +36,9 @@ func NewFileSystem(base string) (*FileSystem, error) {
 }
 
 // NewExecuter implements the Analyser interface
-func (fs *FileSystem) NewExecuter() (Executer, error) {
+func (fs *FileSystem) NewExecuter(goSrcPath string) (Executer, error) {
 	e := &FileSystemExecuter{}
-	if err := e.mktemp(fs.base); err != nil {
+	if err := e.mktemp(fs.base, goSrcPath); err != nil {
 		return nil, err
 	}
 	return e, nil
@@ -48,16 +48,16 @@ func (fs *FileSystem) NewExecuter() (Executer, error) {
 // environment.
 type FileSystemExecuter struct {
 	gopath   string // gopath is base/$rand
-	projpath string // projpath is gopath/src/gopherci and stores the project
+	projpath string // projpath is gopath/src/<goSrcPath>
 }
 
 // Ensure FileSystemExecuter implements Executer
 var _ Executer = (*FileSystemExecuter)(nil)
 
-func (e *FileSystemExecuter) mktemp(base string) error {
+func (e *FileSystemExecuter) mktemp(base, goSrcPath string) error {
 	rand := strconv.Itoa(int(time.Now().UnixNano()))
 	e.gopath = filepath.Join(base, rand)
-	e.projpath = filepath.Join(e.gopath, "src", "gopherci")
+	e.projpath = filepath.Join(e.gopath, "src", goSrcPath)
 
 	if err := os.MkdirAll(e.projpath, 0700); err != nil {
 		return errors.Wrap(err, "fsExecuter.Mktemp: cannot mkdir")

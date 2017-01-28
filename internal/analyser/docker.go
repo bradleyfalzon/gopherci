@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -61,11 +62,12 @@ type DockerExecuter struct {
 	projPath  string // path to project
 }
 
-// NewExecuter implements Analyser interface by creating and starting a container
-func (d *Docker) NewExecuter() (Executer, error) {
+// NewExecuter implements Analyser interface by creating and starting a
+// docker container.
+func (d *Docker) NewExecuter(goSrcPath string) (Executer, error) {
 	exec := &DockerExecuter{
 		client:   d.client,
-		projPath: "$GOPATH/src/gopherci",
+		projPath: filepath.Join("$GOPATH", "src", goSrcPath),
 	}
 
 	name := fmt.Sprintf("goperci-%d", time.Now().UnixNano())
