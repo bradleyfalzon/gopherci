@@ -4,13 +4,9 @@ import (
 	"context"
 	"sync"
 	"testing"
-
-	"github.com/fortytw2/leaktest"
 )
 
 func TestMemoryQueue(t *testing.T) {
-	defer leaktest.Check(t)() // ensure all goroutines exit
-
 	var (
 		ctx, cancelFunc = context.WithCancel(context.Background())
 		wg              sync.WaitGroup

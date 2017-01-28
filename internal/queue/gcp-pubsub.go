@@ -40,6 +40,7 @@ type GCPPubSubQueue struct {
 }
 
 var _ Queuer = &GCPPubSubQueue{}
+var cxnTimeout = 10 * time.Second
 
 // NewGCPPubSubQueue creates a new Queuer and listens on the queue, sending
 // new jobs to the channel c, projectID is required but topicName is optional.
@@ -52,7 +53,12 @@ func NewGCPPubSubQueue(ctx context.Context, wg *sync.WaitGroup, c chan<- interfa
 		return nil, errors.New("projectID must not be empty")
 	}
 
-	client, err := pubsub.NewClient(ctx, projectID)
+	// create a context with a timeout for exclusive use of connection setup to
+	// ensure connnection setup doesn't block and can fail early.
+	cxnCtx, cancel := context.WithTimeout(ctx, cxnTimeout)
+	defer cancel()
+
+	client, err := pubsub.NewClient(cxnCtx, projectID)
 	if err != nil {
 		return nil, errors.Wrap(err, "NewGCPPubSubQueue: could not create client")
 	}
@@ -63,7 +69,7 @@ func NewGCPPubSubQueue(ctx context.Context, wg *sync.WaitGroup, c chan<- interfa
 	topicName += "-v" + version
 
 	log.Printf("NewGCPPubSubQueue: creating topic %q", topicName)
-	q.topic, err = client.CreateTopic(ctx, topicName)
+	q.topic, err = client.CreateTopic(cxnCtx, topicName)
 	if code := grpc.Code(err); code != codes.OK && code != codes.AlreadyExists {
 		return nil, errors.Wrap(err, "NewGCPPubSubQueue: could not create topic")
 	}
@@ -71,7 +77,7 @@ func NewGCPPubSubQueue(ctx context.Context, wg *sync.WaitGroup, c chan<- interfa
 	subName := topicName + "-" + defaultSubName
 
 	log.Printf("NewGCPPubSubQueue: creating subscription %q", subName)
-	subscription, err := client.CreateSubscription(ctx, subName, q.topic, 0, nil)
+	subscription, err := client.CreateSubscription(cxnCtx, subName, q.topic, 0, nil)
 	if code := grpc.Code(err); code != codes.OK && code != codes.AlreadyExists {
 		return nil, errors.Wrap(err, "NewGCPPubSubQueue: could not create subscription")
 	}

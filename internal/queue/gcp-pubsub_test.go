@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // TODO read from .env
@@ -50,4 +52,26 @@ func TestGCPPubSubQueue(t *testing.T) {
 	}
 
 	cancelFunc()
+}
+
+func TestGCPPubSubQueue_timeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
+
+	// Set cxnTimeout to a value that will be exceeded
+	cxnTimeout = time.Millisecond
+
+	var (
+		ctx   = context.Background()
+		wg    sync.WaitGroup
+		c     = make(chan interface{})
+		topic = fmt.Sprintf("%s-unit-tests-%v", defaultTopicName, time.Now().Unix())
+	)
+	_, err := NewGCPPubSubQueue(ctx, &wg, c, projectID, topic)
+
+	have := errors.Cause(err)
+	if want := context.DeadlineExceeded; have != want {
+		t.Fatalf("have %v, want %v", have, want)
+	}
 }
