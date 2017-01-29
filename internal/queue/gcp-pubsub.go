@@ -116,7 +116,7 @@ func (q *GCPPubSubQueue) Queue(job interface{}) error {
 	)
 	for i := 1; i <= maxAttempts; i++ {
 		msgIDs, err = q.topic.Publish(q.ctx, msg)
-		if err == nil && 1 == 2 {
+		if err == nil {
 			break
 		}
 		log.Printf("GCPPubSubQueue: failed publishing message attempt %v of %v, error: %v", i, maxAttempts, err)
