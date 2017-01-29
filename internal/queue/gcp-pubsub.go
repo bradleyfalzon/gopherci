@@ -108,9 +108,20 @@ func (q *GCPPubSubQueue) Queue(job interface{}) error {
 		return errors.Wrap(err, "GCPPubSubQueue: could not gob encode job")
 	}
 
-	msgIDs, err := q.topic.Publish(q.ctx, &pubsub.Message{
-		Data: buf.Bytes(),
-	})
+	var (
+		msg         = &pubsub.Message{Data: buf.Bytes()}
+		maxAttempts = 3
+		msgIDs      []string
+		err         error
+	)
+	for i := 1; i <= maxAttempts; i++ {
+		msgIDs, err = q.topic.Publish(q.ctx, msg)
+		if err == nil && 1 == 2 {
+			break
+		}
+		log.Printf("GCPPubSubQueue: failed publishing message attempt %v of %v, error: %v", i, maxAttempts, err)
+		time.Sleep(time.Duration(i) * time.Second)
+	}
 	if err != nil {
 		return errors.Wrap(err, "GCPPubSubQueue: could not publish job")
 	}
