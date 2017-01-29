@@ -315,6 +315,9 @@ func TestPullRequestEvent_noInstall(t *testing.T) {
 	const installationID = 2
 	event := &github.PullRequestEvent{
 		Action: github.String("opened"),
+		PullRequest: &github.PullRequest{
+			HTMLURL: github.String("https://github.com.au/owner/repo/pulls/3"),
+		},
 		Number: github.Int(1),
 		Installation: &github.Installation{
 			ID: github.Int(installationID),
@@ -337,6 +340,9 @@ func TestPullRequestEvent_disabled(t *testing.T) {
 
 	event := &github.PullRequestEvent{
 		Action: github.String("opened"),
+		PullRequest: &github.PullRequest{
+			HTMLURL: github.String("https://github.com.au/owner/repo/pulls/3"),
+		},
 		Number: github.Int(1),
 		Installation: &github.Installation{
 			ID: github.Int(installationID),
@@ -346,6 +352,25 @@ func TestPullRequestEvent_disabled(t *testing.T) {
 	err := g.PullRequestEvent(event)
 	if want := errors.New("could not find installation with ID 2"); err.Error() != want.Error() {
 		t.Errorf("expected error %q have %q", want, err)
+	}
+}
+
+func TestValidPRAction(t *testing.T) {
+	tests := []struct {
+		action string
+		want   bool
+	}{
+		{"invalid", false},
+		{"opened", true},
+		{"synchronize", true},
+		{"reopened", true},
+	}
+
+	for _, test := range tests {
+		have := validPRAction(test.action)
+		if have != test.want {
+			t.Errorf("have: %v want: %v test: %#v", have, test.want, test)
+		}
 	}
 }
 

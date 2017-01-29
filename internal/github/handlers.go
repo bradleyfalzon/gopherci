@@ -65,10 +65,12 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 
 // PullRequestEvent processes as Pull Request from GitHub.
 func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
-	if e.Action == nil || *e.Action != "opened" {
-		log.Printf("ignoring PR #%v action: %q", *e.Number, *e.Action)
+	log.Printf("pr action %q on repo %v", *e.Action, *e.PullRequest.HTMLURL)
+	if !validPRAction(*e.Action) {
+		log.Printf("ignoring action %q", *e.Action)
 		return nil
 	}
+	pr := e.PullRequest
 
 	// Lookup installation
 	install, err := g.NewInstallation(*e.Installation.ID)
@@ -78,11 +80,6 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	if install == nil {
 		return fmt.Errorf("could not find installation with ID %v", *e.Installation.ID)
 	}
-
-	if e.Repo == nil || e.PullRequest == nil {
-		return fmt.Errorf("malformed PR webhook, no repo or pullrequest set")
-	}
-	pr := e.PullRequest
 
 	// Find tools for this repo
 	tools, err := g.db.ListTools()
@@ -127,6 +124,12 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 		return errors.Wrap(err, fmt.Sprintf("could not set status to success for %v", *pr.StatusesURL))
 	}
 	return nil
+}
+
+// validPRAction return true if a pull request action is valid and should not
+// be ignored.
+func validPRAction(action string) bool {
+	return action == "opened" || action == "synchronize" || action == "reopened"
 }
 
 // stripScheme removes the scheme/protocol and :// from a URL.
