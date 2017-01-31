@@ -100,9 +100,6 @@ const maxIssueComments = 10
 // each issue on a given owner, repo, pr and commit hash. Returns on the first
 // error encountered.
 func (i *Installation) WriteIssues(owner, repo string, prNumber int, commit string, issues []analyser.Issue) (suppressed int, err error) {
-	// TODO make this idempotent, so don't post the same issue twice
-	// which may occur when we support additional commits to a PR (synchronize
-	// api event)
 	for n, issue := range issues {
 		if n >= maxIssueComments {
 			suppressed = len(issues) - maxIssueComments
