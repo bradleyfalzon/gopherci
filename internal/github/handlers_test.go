@@ -393,16 +393,19 @@ func TestStripScheme(t *testing.T) {
 
 func TestStatusDesc(t *testing.T) {
 	tests := []struct {
-		issues []analyser.Issue
-		want   string
+		issues     []analyser.Issue
+		suppressed int
+		want       string
 	}{
-		{[]analyser.Issue{{}, {}}, "Found 2 issues"},
-		{[]analyser.Issue{{}}, "Found 1 issue"},
-		{[]analyser.Issue{}, `Found 0 issues \ʕ◔ϖ◔ʔ/`},
+		{[]analyser.Issue{{}, {}}, 2, "Found 2 issues (2 comments suppressed)"},
+		{[]analyser.Issue{{}, {}}, 1, "Found 2 issues (1 comment suppressed)"},
+		{[]analyser.Issue{{}, {}}, 0, "Found 2 issues"},
+		{[]analyser.Issue{{}}, 0, "Found 1 issue"},
+		{[]analyser.Issue{}, 0, `Found no issues \ʕ◔ϖ◔ʔ/`},
 	}
 
 	for _, test := range tests {
-		have := statusDesc(test.issues)
+		have := statusDesc(test.issues, test.suppressed)
 		if have != test.want {
 			t.Errorf("have: %v want: %v", have, test.want)
 		}

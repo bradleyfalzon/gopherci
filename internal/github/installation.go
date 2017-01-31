@@ -47,7 +47,7 @@ func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 	return &Installation{client: client}, nil
 }
 
-// statusState is the state of a GitHub Status API as defined in
+// StatusState is the state of a GitHub Status API as defined in
 // https://developer.github.com/v3/repos/statuses/
 type StatusState string
 
@@ -91,24 +91,33 @@ func (i *Installation) SetStatus(statusURL string, status StatusState, descripti
 	return nil
 }
 
+// maxIssueComments is the maximum number of comments that will be written
+// on a pull request by writeissues. a pr may have more comments written if
+// writeissues is called multiple times, such is multiple syncronise events.
+const maxIssueComments = 10
+
 // WriteIssues takes a slice of issues and creates a pull request comment for
 // each issue on a given owner, repo, pr and commit hash. Returns on the first
 // error encountered.
-func (i *Installation) WriteIssues(owner, repo string, prNumber int, commit string, issues []analyser.Issue) error {
+func (i *Installation) WriteIssues(owner, repo string, prNumber int, commit string, issues []analyser.Issue) (suppressed int, err error) {
 	// TODO make this idempotent, so don't post the same issue twice
 	// which may occur when we support additional commits to a PR (synchronize
 	// api event)
-	for _, issue := range issues {
+	for n, issue := range issues {
+		if n >= maxIssueComments {
+			suppressed = len(issues) - maxIssueComments
+			break
+		}
 		comment := &github.PullRequestComment{
 			Body:     github.String(issue.Issue),
 			CommitID: github.String(commit),
 			Path:     github.String(issue.File),
 			Position: github.Int(issue.HunkPos),
 		}
-		_, _, err := i.client.PullRequests.CreateComment(owner, repo, prNumber, comment)
+		_, resp, err := i.client.PullRequests.CreateComment(owner, repo, prNumber, comment)
 		if err != nil {
-			return err
+			return suppressed, errors.Wrapf(err, "github api response rate: %v", resp.Rate)
 		}
 	}
-	return nil
+	return suppressed, nil
 }
