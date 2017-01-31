@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
@@ -139,7 +138,6 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 		checker := revgrep.Checker{
 			Patch:   bytes.NewReader(patch),
 			Regexp:  tool.Regexp,
-			Debug:   os.Stdout,
 			AbsPath: pwd,
 		}
 
@@ -158,9 +156,11 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 		}
 	}
 
+	log.Printf("stopping executer")
 	if err := exec.Stop(); err != nil {
 		log.Printf("warning: could not stop executer: %v", err)
 	}
+	log.Printf("finished stopping executer")
 
 	return issues, nil
 }
