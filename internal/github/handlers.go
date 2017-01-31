@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"regexp"
-	"strings"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/google/go-github/github"
@@ -112,12 +111,12 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	}
 
 	// Post issues as comments on github pr
-	err = install.WriteIssues(*pr.Base.Repo.Owner.Login, *pr.Base.Repo.Name, *e.Number, *pr.Head.SHA, issues)
+	suppressed, err := install.WriteIssues(*pr.Base.Repo.Owner.Login, *pr.Base.Repo.Name, *e.Number, *pr.Head.SHA, issues)
 	if err != nil {
 		return errors.Wrapf(err, "could not write comment on %v", *pr.HTMLURL)
 	}
 
-	statusDesc := statusDesc(issues)
+	statusDesc := statusDesc(issues, suppressed)
 
 	// Set the CI status API to success
 	if err := install.SetStatus(*pr.StatusesURL, StatusStateSuccess, statusDesc); err != nil {
@@ -138,13 +137,17 @@ func stripScheme(url string) string {
 }
 
 // statusDesc builds a status description based on issues.
-func statusDesc(issues []analyser.Issue) string {
+func statusDesc(issues []analyser.Issue, suppressed int) string {
 	desc := fmt.Sprintf("Found %d issues", len(issues))
-	switch len(issues) {
-	case 0:
-		return desc + ` \ʕ◔ϖ◔ʔ/`
-	case 1:
-		return strings.TrimRight(desc, "s")
+	switch {
+	case len(issues) == 0:
+		return `Found no issues \ʕ◔ϖ◔ʔ/`
+	case len(issues) == 1:
+		return `Found 1 issue`
+	case suppressed == 1:
+		desc += fmt.Sprintf(" (%v comment suppressed)", suppressed)
+	case suppressed > 1:
+		desc += fmt.Sprintf(" (%v comments suppressed)", suppressed)
 	}
 	return desc
 }
