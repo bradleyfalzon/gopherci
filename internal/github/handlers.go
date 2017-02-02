@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/google/go-github/github"
@@ -34,9 +35,14 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 	case *github.IntegrationInstallationEvent:
 		log.Printf("github: integration event: %v, installation id: %v", *e.Action, *e.Installation.ID)
 		err = g.integrationInstallationEvent(e)
-	case *github.PullRequestEvent:
-		log.Printf("github: pull request event: %v, installation id: %v", *e.Action, *e.Installation.ID)
+	case *github.PushEvent:
+		log.Printf("github: push event: installation id: %v", *e.Installation.ID)
 		err = g.queuer.Queue(e)
+	case *github.PullRequestEvent:
+		if validPRAction(*e.Action) {
+			log.Printf("github: pull request event: %v, installation id: %v", *e.Action, *e.Installation.ID)
+			err = g.queuer.Queue(e)
+		}
 	default:
 		log.Printf("github: ignored webhook event: %T", event)
 	}
@@ -62,22 +68,70 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 	return nil
 }
 
-// PullRequestEvent processes as Pull Request from GitHub.
-func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
-	log.Printf("pr action %q on repo %v", *e.Action, *e.PullRequest.HTMLURL)
-	if !validPRAction(*e.Action) {
-		log.Printf("ignoring action %q", *e.Action)
-		return nil
+// PushEvent processes a push to a repository on GitHub.
+func PushConfig(e *github.PushEvent) analyseConfig {
+	return analyseConfig{
+		eventType:      analyser.EventTypePush,
+		installationID: *e.Installation.ID,
+		statusesURL:    strings.Replace(*e.Repo.StatusesURL, "{sha}", *e.After, -1),
+		baseURL:        *e.Repo.CloneURL,
+		// baseRef is after~numCommits to better handle forced pushes, as a
+		// forced push has the before ref of a commit that's been overwritten.
+		baseRef:   fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
+		headURL:   *e.Repo.CloneURL,
+		headRef:   *e.After,
+		goSrcPath: stripScheme(*e.Repo.HTMLURL),
 	}
+}
+
+// PullRequestEvent processes as Pull Request from GitHub.
+func PullRequestConfig(e *github.PullRequestEvent) analyseConfig {
 	pr := e.PullRequest
+	return analyseConfig{
+		eventType:      analyser.EventTypePullRequest,
+		installationID: *e.Installation.ID,
+		statusesURL:    *pr.StatusesURL,
+		baseURL:        *pr.Base.Repo.CloneURL,
+		baseRef:        *pr.Base.Ref,
+		headURL:        *pr.Head.Repo.CloneURL,
+		headRef:        *pr.Head.Ref,
+		goSrcPath:      stripScheme(*pr.Base.Repo.HTMLURL),
+		owner:          *pr.Base.Repo.Owner.Login,
+		repo:           *pr.Base.Repo.Name,
+		pr:             *e.Number,
+		sha:            *pr.Head.SHA,
+	}
+}
+
+type analyseConfig struct {
+	eventType      analyser.EventType
+	installationID int
+	statusesURL    string
+
+	// analyser
+	baseURL   string // base for pr, before for push.
+	baseRef   string // ref can be branch for pr or sha~numCommits for push.
+	headURL   string
+	headRef   string // ref can be branch for pr or sha (after) for push.
+	goSrcPath string
+
+	// issue comments, required eventType is EventTypePullRequest.
+	owner string
+	repo  string
+	pr    int
+	sha   string
+}
+
+func (g *GitHub) Analyse(cfg analyseConfig) error {
+	log.Printf("analysing config: %#v", cfg)
 
 	// Lookup installation
-	install, err := g.NewInstallation(*e.Installation.ID)
+	install, err := g.NewInstallation(cfg.installationID)
 	if err != nil {
 		return errors.Wrap(err, "error getting installation")
 	}
 	if install == nil {
-		return fmt.Errorf("could not find installation with ID %v", *e.Installation.ID)
+		return fmt.Errorf("could not find installation with ID %v", cfg.installationID)
 	}
 
 	// Find tools for this repo
@@ -87,41 +141,48 @@ func (g *GitHub) PullRequestEvent(e *github.PullRequestEvent) error {
 	}
 
 	// Set the CI status API to pending
-	err = install.SetStatus(*pr.StatusesURL, StatusStatePending, "In progress")
+	err = install.SetStatus(cfg.statusesURL, StatusStatePending, "In progress")
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("could not set status to pending for %v", *pr.StatusesURL))
+		return errors.Wrapf(err, "could not set status to pending for %v", cfg.statusesURL)
 	}
 
 	// Analyse
-	config := analyser.Config{
-		BaseURL:    *pr.Base.Repo.CloneURL,
-		BaseBranch: *pr.Base.Ref,
-		HeadURL:    *pr.Head.Repo.CloneURL,
-		HeadBranch: *pr.Head.Ref,
-		DiffURL:    *pr.DiffURL,
-		GoSrcPath:  stripScheme(*pr.Base.Repo.HTMLURL),
+	acfg := analyser.Config{
+		EventType: cfg.eventType,
+		BaseURL:   cfg.baseURL,
+		BaseRef:   cfg.baseRef,
+		HeadURL:   cfg.headURL,
+		HeadRef:   cfg.headRef,
+		GoSrcPath: cfg.goSrcPath,
 	}
 
-	issues, err := analyser.Analyse(g.analyser, tools, config)
+	issues, err := analyser.Analyse(g.analyser, tools, acfg)
 	if err != nil {
-		if err := install.SetStatus(*pr.StatusesURL, StatusStateError, "Internal error"); err != nil {
-			log.Printf("could not set status to error for %v", *pr.StatusesURL)
+		if serr := install.SetStatus(cfg.statusesURL, StatusStateError, "Internal error"); serr != nil {
+			log.Printf("could not set status to error for %v: %s", cfg.statusesURL, serr)
 		}
-		return errors.Wrap(err, fmt.Sprintf("could not analyse %v pr %v", *e.Repo.URL, *e.Number))
+		return errors.Wrap(err, "could not run analyser")
 	}
+	log.Printf("analyser found %v issues", len(issues))
 
-	// Post issues as comments on github pr
-	suppressed, err := install.WriteIssues(*pr.Base.Repo.Owner.Login, *pr.Base.Repo.Name, *e.Number, *pr.Head.SHA, issues)
-	if err != nil {
-		return errors.Wrapf(err, "could not write comment on %v", *pr.HTMLURL)
+	// if this is a PR add comments, suppressed is the number of comments that
+	// would have been submitted if it wasn't for an internal fixed limit. For
+	// pushes, there are no comments, so suppressed is 0.
+	var suppressed = 0
+	if cfg.pr != 0 {
+		suppressed, err = install.WriteIssues(cfg.owner, cfg.repo, cfg.pr, cfg.sha, issues)
+		if err != nil {
+			return errors.Wrap(err, "could not write comment")
+		}
+		log.Printf("wrote %v issues as comments, suppressed %v", len(issues)-suppressed, suppressed)
 	}
-
-	statusDesc := statusDesc(issues, suppressed)
 
 	// Set the CI status API to success
-	if err := install.SetStatus(*pr.StatusesURL, StatusStateSuccess, statusDesc); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("could not set status to success for %v", *pr.StatusesURL))
+	statusDesc := statusDesc(issues, suppressed)
+	if err := install.SetStatus(cfg.statusesURL, StatusStateSuccess, statusDesc); err != nil {
+		return errors.Wrapf(err, "could not set status to success for %v", cfg.statusesURL)
 	}
+
 	return nil
 }
 

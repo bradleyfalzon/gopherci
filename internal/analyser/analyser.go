@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"strings"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
@@ -30,16 +29,17 @@ type Analyser interface {
 // Config hold configuration options for use in analyser. All options
 // are required.
 type Config struct {
+	// EventType defines the type of event being processed.
+	EventType EventType
 	// BaseURL is the VCS fetchable base repo URL.
 	BaseURL string
-	// BaseBranch is the branch we want to merge into.
-	BaseBranch string
+	// BaseRef is the reference we want to merge into, for EventTypePullRequest
+	// it's likely the branch, for EventTypePush it's a sha~number.
+	BaseRef string
 	// HeadURL is the VCS fetchable repo URL containing the changes to be merged.
 	HeadURL string
-	// HeadBranch is the name of the branch containing changes.
-	HeadBranch string
-	// DiffURL is the URL containing the unified diff of the changes.
-	DiffURL string
+	// HeadRef is the name of the reference containing changes.
+	HeadRef string
 	// GoSrcPath is the repository's path when placed in $GOPATH/src.
 	GoSrcPath string
 }
@@ -63,46 +63,81 @@ type Executer interface {
 	Stop() error
 }
 
+// EventType defines the type of even which needs to be analysed, as there
+// maybe different or optimal methods based on the type.
+type EventType int
+
+const (
+	// EventTypeUnknown cannot be handled and is the zero value for an EventType.
+	EventTypeUnknown EventType = iota
+	// EventTypePullRequest is a Pull Request.
+	EventTypePullRequest
+	// EventTypePush is a push.
+	EventTypePush
+)
+
 // Analyse downloads a repository set in config in an environment provided by
 // analyser, running the series of tools. Returns issues from tools that have
 // are likely to have been caused by a change.
 func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error) {
-
-	// download patch
-	resp, err := http.Get(config.DiffURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	patch, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not ioutil.ReadAll response from"+config.DiffURL)
-	}
-
 	// Get a new executer/environment to execute in
 	exec, err := analyser.NewExecuter(config.GoSrcPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "analyser could create new executer")
 	}
 
-	// clone repo
-	// TODO check out https://godoc.org/golang.org/x/tools/go/vcs to be agnostic
-	args := []string{"git", "clone", "--branch", config.HeadBranch, "--depth", "1", "--single-branch", config.HeadURL, "."}
-	out, err := exec.Execute(args)
-	if err != nil {
-		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+	// baseRef is the reference to the base branch or before commit, the ref
+	// of the state before this PR/Push.
+	var baseRef string
+	switch config.EventType {
+	case EventTypePullRequest:
+		// clone repo
+		args := []string{"git", "clone", "--depth", "1", "--branch", config.HeadRef, "--single-branch", config.HeadURL, "."}
+		out, err := exec.Execute(args)
+		if err != nil {
+			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+		}
+
+		// This is a PR, fetch base as some tools (apicompat) needs to
+		// reference it.
+		args = []string{"git", "fetch", "--depth", "1", config.BaseURL, config.BaseRef}
+		out, err = exec.Execute(args)
+		if err != nil {
+			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+		}
+		baseRef = "FETCH_HEAD"
+	case EventTypePush:
+		// clone repo, this cannot be shallow and needs access to all commits
+		// therefore cannot be shallow (or if it is, would required a very
+		// large depth and --no-single-branch).
+		args := []string{"git", "clone", config.HeadURL, "."}
+		out, err := exec.Execute(args)
+		if err != nil {
+			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+		}
+
+		// Checkout sha
+		args = []string{"git", "checkout", config.HeadRef}
+		out, err = exec.Execute(args)
+		if err != nil {
+			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+		}
+		baseRef = config.BaseRef
+	default:
+		return nil, errors.Errorf("unknown event type %T", config.EventType)
 	}
 
-	// fetch base/upstream as some tools (apicompat) needs it
-	args = []string{"git", "fetch", config.BaseURL, config.BaseBranch}
-	out, err = exec.Execute(args)
+	// create a unified diff for use by revgrep
+	args := []string{"git", "diff", fmt.Sprintf("%v...%v", baseRef, config.HeadRef)}
+	patch, err := exec.Execute(args)
 	if err != nil {
-		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, patch)
 	}
+	log.Printf("%v output: %s", args, bytes.TrimSpace(patch))
 
 	// install dependencies, some static analysis tools require building a project
 	args = []string{"install-deps.sh"}
-	out, err = exec.Execute(args)
+	out, err := exec.Execute(args)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 	}
@@ -123,9 +158,9 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 		args := []string{tool.Path}
 		for _, arg := range strings.Fields(tool.Args) {
 			switch arg {
-			case ArgBaseBranch:
-				// Tool wants the base branch name as a flag
-				arg = "FETCH_HEAD"
+			case ArgBaseBranch: // TODO change to ArgBaseRef
+				// Tool wants the base ref name as a flag
+				arg = baseRef
 			}
 			args = append(args, arg)
 		}

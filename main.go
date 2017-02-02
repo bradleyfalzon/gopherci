@@ -177,8 +177,16 @@ func queueListen(ctx context.Context, queueChan <-chan interface{}, g *github.Gi
 			log.Printf("queueListen: reading job type %T", job)
 			var err error
 			switch e := job.(type) {
+			case *gh.PushEvent:
+				err = g.Analyse(github.PushConfig(e))
+				if err != nil {
+					err = errors.Wrapf(err, "cannot analyse push event for sha %v on repo %v", *e.After, *e.Repo.HTMLURL)
+				}
 			case *gh.PullRequestEvent:
-				err = g.PullRequestEvent(e)
+				err = g.Analyse(github.PullRequestConfig(e))
+				if err != nil {
+					err = errors.Wrapf(err, "cannot analyse pr %v", e.PullRequest.HTMLURL)
+				}
 			default:
 				err = fmt.Errorf("unknown queue job type %T", e)
 			}

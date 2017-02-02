@@ -21,6 +21,7 @@ import (
 func init() {
 	// List of all types that could be added to the queue
 	gob.Register(&github.PullRequestEvent{})
+	gob.Register(&github.PushEvent{})
 }
 
 const (
