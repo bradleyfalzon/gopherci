@@ -56,6 +56,15 @@ func (a *mockAnalyser) NewExecuter(goSrcPath string) (analyser.Executer, error) 
 	return a, nil
 }
 func (a *mockAnalyser) Execute(args []string) (out []byte, err error) {
+	if len(args) > 1 && args[0] == "git" && args[1] == "diff" {
+		return []byte(`diff --git a/subdir/main.go b/subdir/main.go
+new file mode 100644
+index 0000000..6362395
+--- /dev/null
++++ b/main.go
+@@ -0,0 +1,1 @@
++var _ = fmt.Sprintln()`), nil
+	}
 	if len(args) > 0 && args[0] == "tool" {
 		return []byte(`main.go:1: error`), nil
 	}
@@ -89,8 +98,8 @@ func TestWebhookHandler(t *testing.T) {
 		expectCode int
 	}{
 		{"sha1=d1e100e3f17e8399b73137382896ff1536c59457", "goci-invalid", http.StatusBadRequest},
-		{"sha1=d1e100e3f17e8399b73137382896ff1536c59457", "push", http.StatusOK},
-		{"sha1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "push", http.StatusBadRequest},
+		{"sha1=d1e100e3f17e8399b73137382896ff1536c59457", "issues", http.StatusOK},
+		{"sha1=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "issues", http.StatusBadRequest},
 	}
 
 	for _, test := range tests {
@@ -165,7 +174,87 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 	memDB.ForceError(nil)
 }
 
-func TestPullRequestEvent(t *testing.T) {
+func TestPushConfig(t *testing.T) {
+	want := AnalyseConfig{
+		eventType:      analyser.EventTypePush,
+		installationID: 1,
+		statusesURL:    "https://github.com/owner/repo/status/abcdef",
+		baseURL:        "https://github.com/owner/repo.git",
+		baseRef:        "abcdef~2",
+		headURL:        "https://github.com/owner/repo.git",
+		headRef:        "abcdef",
+		goSrcPath:      "github.com/owner/repo",
+	}
+	e := &github.PushEvent{
+		Installation: &github.Installation{
+			ID: github.Int(1),
+		},
+		Repo: &github.PushEventRepository{
+			StatusesURL: github.String("https://github.com/owner/repo/status/{sha}"),
+			CloneURL:    github.String("https://github.com/owner/repo.git"),
+			HTMLURL:     github.String("https://github.com/owner/repo"),
+		},
+		After:   github.String("abcdef"),
+		Commits: []github.PushEventCommit{{}, {}},
+	}
+
+	have := PushConfig(e)
+	if have != want {
+		t.Errorf("have:\n%+v\nwant:\n%+v", have, want)
+	}
+
+}
+
+func TestPullRequestConfig(t *testing.T) {
+	want := AnalyseConfig{
+		eventType:      analyser.EventTypePullRequest,
+		installationID: 1,
+		statusesURL:    "https://github.com/owner/repo/status/abcdef",
+		baseURL:        "https://github.com/owner/repo.git",
+		baseRef:        "base-branch",
+		headURL:        "https://github.com/owner/repo.git",
+		headRef:        "head-branch",
+		goSrcPath:      "github.com/owner/repo",
+		owner:          "owner",
+		repo:           "repo",
+		pr:             2,
+		sha:            "abcdef",
+	}
+	e := &github.PullRequestEvent{
+		Action: github.String("opened"),
+		Number: github.Int(2),
+		PullRequest: &github.PullRequest{
+			StatusesURL: github.String("https://github.com/owner/repo/status/abcdef"),
+			Base: &github.PullRequestBranch{
+				Repo: &github.Repository{
+					HTMLURL:  github.String("https://github.com/owner/repo"),
+					CloneURL: github.String("https://github.com/owner/repo.git"),
+					Name:     github.String("repo"),
+					Owner: &github.User{
+						Login: github.String("owner"),
+					},
+				},
+				Ref: github.String("base-branch"),
+			},
+			Head: &github.PullRequestBranch{
+				Repo: &github.Repository{
+					CloneURL: github.String("https://github.com/owner/repo.git"),
+				},
+				SHA: github.String("abcdef"),
+				Ref: github.String("head-branch"),
+			},
+		},
+		Installation: &github.Installation{
+			ID: github.Int(1),
+		},
+	}
+	have := PullRequestConfig(e)
+	if have != want {
+		t.Errorf("have:\n%+v\nwant:\n%+v", have, want)
+	}
+}
+
+func TestAnalyse(t *testing.T) {
 	g, mockAnalyser, memDB := setup(t)
 
 	var (
@@ -175,12 +264,6 @@ func TestPullRequestEvent(t *testing.T) {
 	)
 
 	var (
-		expectedConfig = analyser.Config{
-			BaseURL:    "base-repo-url",
-			BaseBranch: "base-branch",
-			HeadURL:    "head-repo-url",
-			HeadBranch: "head-branch",
-		}
 		expectedCmtBody   = "Name: error"
 		expectedCmtPath   = "main.go"
 		expectedCmtPos    = 1
@@ -188,20 +271,12 @@ func TestPullRequestEvent(t *testing.T) {
 		expectedOwner     = "owner"
 		expectedRepo      = "repo"
 		expectedPR        = 3
-		expectedGoSrcPath = "gitub.com/owner/repo"
+		expectedGoSrcPath = "github.com/owner/repo"
 	)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(r.Body)
 		switch r.RequestURI {
-		case "/diff-url":
-			fmt.Fprintln(w, `diff --git a/subdir/main.go b/subdir/main.go
-new file mode 100644
-index 0000000..6362395
---- /dev/null
-+++ b/main.go
-@@ -0,0 +1,1 @@
-+var _ = fmt.Sprintln()`)
 		case "/status-url":
 			// Make sure status was set to pending and then success
 			var status struct {
@@ -245,7 +320,6 @@ index 0000000..6362395
 	}))
 	defer ts.Close()
 	g.baseURL = ts.URL
-	expectedConfig.DiffURL = ts.URL + "/diff-url"
 
 	const (
 		installationID = 2
@@ -260,41 +334,22 @@ index 0000000..6362395
 		{Name: "Name", Path: "tool", Args: "-flag %BASE_BRANCH% ./..."},
 	}
 
-	event := &github.PullRequestEvent{
-		Action: github.String("opened"),
-		Number: github.Int(expectedPR),
-		PullRequest: &github.PullRequest{
-			HTMLURL:     github.String("https://github.com.au/owner/repo/pulls/3"),
-			StatusesURL: github.String(ts.URL + "/status-url"),
-			DiffURL:     github.String(expectedConfig.DiffURL),
-			Base: &github.PullRequestBranch{
-				Repo: &github.Repository{
-					HTMLURL:  github.String("https://" + expectedGoSrcPath),
-					CloneURL: github.String(expectedConfig.BaseURL),
-					Name:     github.String(expectedRepo),
-					Owner: &github.User{
-						Login: github.String(expectedOwner),
-					},
-				},
-				Ref: github.String(expectedConfig.BaseBranch),
-			},
-			Head: &github.PullRequestBranch{
-				Repo: &github.Repository{
-					CloneURL: github.String(expectedConfig.HeadURL),
-				},
-				SHA: github.String(expectedCmtSHA),
-				Ref: github.String(expectedConfig.HeadBranch),
-			},
-		},
-		Repo: &github.Repository{
-			URL: github.String("repo-url"),
-		},
-		Installation: &github.Installation{
-			ID: github.Int(installationID),
-		},
+	cfg := AnalyseConfig{
+		eventType:      analyser.EventTypePullRequest,
+		installationID: installationID,
+		statusesURL:    ts.URL + "/status-url",
+		baseURL:        "https://github.com/owner/repo.git",
+		baseRef:        "base-branch",
+		headURL:        "https://github.com/owner/repo.git",
+		headRef:        "head-branch",
+		goSrcPath:      "github.com/owner/repo",
+		owner:          expectedOwner,
+		repo:           expectedRepo,
+		pr:             expectedPR,
+		sha:            expectedCmtSHA,
 	}
 
-	err := g.PullRequestEvent(event)
+	err := g.Analyse(cfg)
 	switch {
 	case err != nil:
 		t.Errorf("did not expect error: %v", err)
@@ -313,24 +368,15 @@ func TestPullRequestEvent_noInstall(t *testing.T) {
 	g, _, _ := setup(t)
 
 	const installationID = 2
-	event := &github.PullRequestEvent{
-		Action: github.String("opened"),
-		PullRequest: &github.PullRequest{
-			HTMLURL: github.String("https://github.com.au/owner/repo/pulls/3"),
-		},
-		Number: github.Int(1),
-		Installation: &github.Installation{
-			ID: github.Int(installationID),
-		},
-	}
+	cfg := AnalyseConfig{installationID: installationID}
 
-	err := g.PullRequestEvent(event)
+	err := g.Analyse(cfg)
 	if want := errors.New("could not find installation with ID 2"); err.Error() != want.Error() {
 		t.Errorf("expected error %q have %q", want, err)
 	}
 }
 
-func TestPullRequestEvent_disabled(t *testing.T) {
+func TestAnalyse_disabled(t *testing.T) {
 	g, _, memDB := setup(t)
 
 	const installationID = 2
@@ -338,18 +384,9 @@ func TestPullRequestEvent_disabled(t *testing.T) {
 	// Added but not enabled
 	_ = memDB.AddGHInstallation(installationID, 3, 4)
 
-	event := &github.PullRequestEvent{
-		Action: github.String("opened"),
-		PullRequest: &github.PullRequest{
-			HTMLURL: github.String("https://github.com.au/owner/repo/pulls/3"),
-		},
-		Number: github.Int(1),
-		Installation: &github.Installation{
-			ID: github.Int(installationID),
-		},
-	}
+	cfg := AnalyseConfig{installationID: installationID}
 
-	err := g.PullRequestEvent(event)
+	err := g.Analyse(cfg)
 	if want := errors.New("could not find installation with ID 2"); err.Error() != want.Error() {
 		t.Errorf("expected error %q have %q", want, err)
 	}
