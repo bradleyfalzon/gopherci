@@ -182,6 +182,7 @@ func TestPushConfig(t *testing.T) {
 	want := AnalyseConfig{
 		eventType:       analyser.EventTypePush,
 		installationID:  1,
+		repositoryID:    2,
 		statusesContext: "ci/gopherci/push",
 		statusesURL:     "https://github.com/owner/repo/status/abcdef",
 		baseURL:         "https://github.com/owner/repo.git",
@@ -195,6 +196,7 @@ func TestPushConfig(t *testing.T) {
 			ID: github.Int(1),
 		},
 		Repo: &github.PushEventRepository{
+			ID:          github.Int(2),
 			StatusesURL: github.String("https://github.com/owner/repo/status/{sha}"),
 			CloneURL:    github.String("https://github.com/owner/repo.git"),
 			HTMLURL:     github.String("https://github.com/owner/repo"),
@@ -214,6 +216,7 @@ func TestPullRequestConfig(t *testing.T) {
 	want := AnalyseConfig{
 		eventType:       analyser.EventTypePullRequest,
 		installationID:  1,
+		repositoryID:    2,
 		statusesContext: "ci/gopherci/pr",
 		statusesURL:     "https://github.com/owner/repo/status/abcdef",
 		baseURL:         "https://github.com/owner/repo.git",
@@ -252,6 +255,9 @@ func TestPullRequestConfig(t *testing.T) {
 		},
 		Installation: &github.Installation{
 			ID: github.Int(1),
+		},
+		Repo: &github.Repository{
+			ID: github.Int(2),
 		},
 	}
 	have := PullRequestConfig(e)
@@ -442,15 +448,15 @@ func TestStripScheme(t *testing.T) {
 
 func TestStatusDesc(t *testing.T) {
 	tests := []struct {
-		issues     []analyser.Issue
+		issues     []db.Issue
 		suppressed int
 		want       string
 	}{
-		{[]analyser.Issue{{}, {}}, 2, "Found 2 issues (2 comments suppressed)"},
-		{[]analyser.Issue{{}, {}}, 1, "Found 2 issues (1 comment suppressed)"},
-		{[]analyser.Issue{{}, {}}, 0, "Found 2 issues"},
-		{[]analyser.Issue{{}}, 0, "Found 1 issue"},
-		{[]analyser.Issue{}, 0, `Found no issues \ʕ◔ϖ◔ʔ/`},
+		{[]db.Issue{{}, {}}, 2, "Found 2 issues (2 comments suppressed)"},
+		{[]db.Issue{{}, {}}, 1, "Found 2 issues (1 comment suppressed)"},
+		{[]db.Issue{{}, {}}, 0, "Found 2 issues"},
+		{[]db.Issue{{}}, 0, "Found 1 issue"},
+		{[]db.Issue{}, 0, `Found no issues \ʕ◔ϖ◔ʔ/`},
 	}
 
 	for _, test := range tests {

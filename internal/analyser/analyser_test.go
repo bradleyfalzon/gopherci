@@ -46,9 +46,9 @@ func TestAnalyse_pr(t *testing.T) {
 	}
 
 	tools := []db.Tool{
-		{Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
-		{Name: "Name2", Path: "tool2"},
-		{Name: "Name2", Path: "tool3"},
+		{ID: 1, Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
+		{ID: 2, Name: "Name2", Path: "tool2"},
+		{ID: 3, Name: "Name2", Path: "tool3"},
 	}
 
 	diff := []byte(`diff --git a/subdir/main.go b/subdir/main.go
@@ -88,17 +88,23 @@ index 0000000..6362395
 		},
 	}
 
-	issues, err := Analyse(context.Background(), analyser, tools, cfg)
+	analysis, err := Analyse(context.Background(), analyser, tools, cfg)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
 
-	expected := []Issue{
-		{File: "main.go", HunkPos: 1, Issue: "Name1: error1"},
-		{File: "main.go", HunkPos: 1, Issue: "Name2: error2"},
+	want := map[db.ToolID][]db.Issue{
+		1: []db.Issue{{Path: "main.go", Line: 1, HunkPos: 1, Issue: "Name1: error1"}},
+		2: []db.Issue{{Path: "main.go", Line: 1, HunkPos: 1, Issue: "Name2: error2"}},
+		3: nil,
 	}
-	if !reflect.DeepEqual(expected, issues) {
-		t.Errorf("expected issues:\n%+v\ngot:\n%+v", expected, issues)
+	for toolID, issues := range want {
+		if have := analysis.Tools[toolID].Issues; !reflect.DeepEqual(issues, have) {
+			t.Errorf("unexpected issues for toolID %v\nwant: %+v\nhave: %+v", toolID, issues, have)
+		}
+	}
+	if len(analysis.Tools) != len(want) {
+		t.Errorf("analysis has %v tools want %v", len(analysis.Tools), len(want))
 	}
 
 	if !analyser.Stopped {
@@ -134,9 +140,9 @@ func TestAnalyse_push(t *testing.T) {
 	}
 
 	tools := []db.Tool{
-		{Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
-		{Name: "Name2", Path: "tool2"},
-		{Name: "Name2", Path: "tool3"},
+		{ID: 1, Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
+		{ID: 2, Name: "Name2", Path: "tool2"},
+		{ID: 3, Name: "Name2", Path: "tool3"},
 	}
 
 	diff := []byte(`diff --git a/subdir/main.go b/subdir/main.go
@@ -176,17 +182,23 @@ index 0000000..6362395
 		},
 	}
 
-	issues, err := Analyse(context.Background(), analyser, tools, cfg)
+	analysis, err := Analyse(context.Background(), analyser, tools, cfg)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
 
-	expected := []Issue{
-		{File: "main.go", HunkPos: 1, Issue: "Name1: error1"},
-		{File: "main.go", HunkPos: 1, Issue: "Name2: error2"},
+	want := map[db.ToolID][]db.Issue{
+		1: []db.Issue{{Path: "main.go", Line: 1, HunkPos: 1, Issue: "Name1: error1"}},
+		2: []db.Issue{{Path: "main.go", Line: 1, HunkPos: 1, Issue: "Name2: error2"}},
+		3: nil,
 	}
-	if !reflect.DeepEqual(expected, issues) {
-		t.Errorf("expected issues:\n%+v\ngot:\n%+v", expected, issues)
+	for toolID, issues := range want {
+		if have := analysis.Tools[toolID].Issues; !reflect.DeepEqual(issues, have) {
+			t.Errorf("unexpected issues for toolID %v\nwant: %+v\nhave: %+v", toolID, issues, have)
+		}
+	}
+	if len(analysis.Tools) != len(want) {
+		t.Errorf("analysis has %v tools want %v", len(analysis.Tools), len(want))
 	}
 
 	if !analyser.Stopped {

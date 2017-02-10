@@ -9,12 +9,16 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/bradleyfalzon/gopherci/internal/analyser"
+	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 )
 
+// Installation is a GitHub Integration which has operates in the context of a
+// GitHub installation, and therefore performance operations as that
+// installation.
 type Installation struct {
+	ID     int
 	client *github.Client
 }
 
@@ -45,7 +49,7 @@ func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 		return nil, err
 	}
 
-	return &Installation{client: client}, nil
+	return &Installation{ID: installation.ID, client: client}, nil
 }
 
 // StatusState is the state of a GitHub Status API as defined in
@@ -101,7 +105,7 @@ const maxIssueComments = 10
 // existing comments and returns comments that don't already exist.
 // Additionally, only a maximum amount of issues will be returned, the number
 // of total suppressed comments is returned.
-func (i *Installation) FilterIssues(ctx context.Context, owner, repo string, prNumber int, issues []analyser.Issue) (suppressed int, filtered []analyser.Issue, err error) {
+func (i *Installation) FilterIssues(ctx context.Context, owner, repo string, prNumber int, issues []db.Issue) (suppressed int, filtered []db.Issue, err error) {
 	ecomments, _, err := i.client.PullRequests.ListComments(ctx, owner, repo, prNumber, nil)
 	if err != nil {
 		return 0, nil, errors.Wrap(err, "could not list existing comments")
@@ -112,7 +116,7 @@ func (i *Installation) FilterIssues(ctx context.Context, owner, repo string, prN
 	for i := len(issues) - 1; i >= 0; i-- {
 		issue := issues[i]
 		for _, ec := range ecomments {
-			if issue.File == *ec.Path && issue.HunkPos == *ec.Position && issue.Issue == *ec.Body {
+			if issue.Path == *ec.Path && issue.HunkPos == *ec.Position && issue.Issue == *ec.Body {
 				issues = append(issues[:i], issues[i+1:]...)
 				break
 			}
@@ -128,12 +132,12 @@ func (i *Installation) FilterIssues(ctx context.Context, owner, repo string, prN
 // WriteIssues takes a slice of issues and creates a pull request comment for
 // each issue on a given owner, repo, pr and commit hash. Returns on the first
 // error encountered.
-func (i *Installation) WriteIssues(ctx context.Context, owner, repo string, prNumber int, commit string, issues []analyser.Issue) error {
+func (i *Installation) WriteIssues(ctx context.Context, owner, repo string, prNumber int, commit string, issues []db.Issue) error {
 	for _, issue := range issues {
 		comment := &github.PullRequestComment{
 			Body:     github.String(issue.Issue),
 			CommitID: github.String(commit),
-			Path:     github.String(issue.File),
+			Path:     github.String(issue.Path),
 			Position: github.Int(issue.HunkPos),
 		}
 		_, _, err := i.client.PullRequests.CreateComment(ctx, owner, repo, prNumber, comment)
