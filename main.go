@@ -185,7 +185,7 @@ func queueListen(ctx context.Context, queueChan <-chan interface{}, g *github.Gi
 			case *gh.PullRequestEvent:
 				err = g.Analyse(github.PullRequestConfig(e))
 				if err != nil {
-					err = errors.Wrapf(err, "cannot analyse pr %v", e.PullRequest.HTMLURL)
+					err = errors.Wrapf(err, "cannot analyse pr %v", *e.PullRequest.HTMLURL)
 				}
 			default:
 				err = fmt.Errorf("unknown queue job type %T", e)
