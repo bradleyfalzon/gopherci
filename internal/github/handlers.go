@@ -71,10 +71,11 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 // PushConfig returns an AnalyseConfig for a GitHub Push Event.
 func PushConfig(e *github.PushEvent) AnalyseConfig {
 	return AnalyseConfig{
-		eventType:      analyser.EventTypePush,
-		installationID: *e.Installation.ID,
-		statusesURL:    strings.Replace(*e.Repo.StatusesURL, "{sha}", *e.After, -1),
-		baseURL:        *e.Repo.CloneURL,
+		eventType:       analyser.EventTypePush,
+		installationID:  *e.Installation.ID,
+		statusesContext: "ci/gopherci/push",
+		statusesURL:     strings.Replace(*e.Repo.StatusesURL, "{sha}", *e.After, -1),
+		baseURL:         *e.Repo.CloneURL,
 		// baseRef is after~numCommits to better handle forced pushes, as a
 		// forced push has the before ref of a commit that's been overwritten.
 		baseRef:   fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
@@ -88,27 +89,29 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 func PullRequestConfig(e *github.PullRequestEvent) AnalyseConfig {
 	pr := e.PullRequest
 	return AnalyseConfig{
-		eventType:      analyser.EventTypePullRequest,
-		installationID: *e.Installation.ID,
-		statusesURL:    *pr.StatusesURL,
-		baseURL:        *pr.Base.Repo.CloneURL,
-		baseRef:        *pr.Base.Ref,
-		headURL:        *pr.Head.Repo.CloneURL,
-		headRef:        *pr.Head.Ref,
-		goSrcPath:      stripScheme(*pr.Base.Repo.HTMLURL),
-		owner:          *pr.Base.Repo.Owner.Login,
-		repo:           *pr.Base.Repo.Name,
-		pr:             *e.Number,
-		sha:            *pr.Head.SHA,
+		eventType:       analyser.EventTypePullRequest,
+		installationID:  *e.Installation.ID,
+		statusesContext: "ci/gopherci/pr",
+		statusesURL:     *pr.StatusesURL,
+		baseURL:         *pr.Base.Repo.CloneURL,
+		baseRef:         *pr.Base.Ref,
+		headURL:         *pr.Head.Repo.CloneURL,
+		headRef:         *pr.Head.Ref,
+		goSrcPath:       stripScheme(*pr.Base.Repo.HTMLURL),
+		owner:           *pr.Base.Repo.Owner.Login,
+		repo:            *pr.Base.Repo.Name,
+		pr:              *e.Number,
+		sha:             *pr.Head.SHA,
 	}
 }
 
 // AnalyseConfig is a configuration struct for the Analyse method, all fields
 // are required, unless otherwise stated.
 type AnalyseConfig struct {
-	eventType      analyser.EventType
-	installationID int
-	statusesURL    string
+	eventType       analyser.EventType
+	installationID  int
+	statusesContext string
+	statusesURL     string
 
 	// for analyser.
 	baseURL   string // base for pr, before for push.
@@ -145,7 +148,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 	}
 
 	// Set the CI status API to pending
-	err = install.SetStatus(cfg.statusesURL, StatusStatePending, "In progress")
+	err = install.SetStatus(cfg.statusesContext, cfg.statusesURL, StatusStatePending, "In progress")
 	if err != nil {
 		return errors.Wrapf(err, "could not set status to pending for %v", cfg.statusesURL)
 	}
@@ -162,7 +165,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 
 	issues, err := analyser.Analyse(g.analyser, tools, acfg)
 	if err != nil {
-		if serr := install.SetStatus(cfg.statusesURL, StatusStateError, "Internal error"); serr != nil {
+		if serr := install.SetStatus(cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error"); serr != nil {
 			log.Printf("could not set status to error for %v: %s", cfg.statusesURL, serr)
 		}
 		return errors.Wrap(err, "could not run analyser")
@@ -183,7 +186,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 
 	// Set the CI status API to success
 	statusDesc := statusDesc(issues, suppressed)
-	if err := install.SetStatus(cfg.statusesURL, StatusStateSuccess, statusDesc); err != nil {
+	if err := install.SetStatus(cfg.statusesContext, cfg.statusesURL, StatusStateSuccess, statusDesc); err != nil {
 		return errors.Wrapf(err, "could not set status to success for %v", cfg.statusesURL)
 	}
 
