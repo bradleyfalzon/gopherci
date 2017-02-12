@@ -59,14 +59,14 @@ const (
 )
 
 // SetStatus sets the CI Status API
-func (i *Installation) SetStatus(statusURL string, status StatusState, description string) error {
+func (i *Installation) SetStatus(context, statusURL string, status StatusState, description string) error {
 	s := struct {
 		State       string `json:"state,omitempty"`
 		TargetURL   string `json:"target_url,omitempty"`
 		Description string `json:"description,omitempty"`
 		Context     string `json:"context,omitempty"`
 	}{
-		string(status), "", description, "ci/gopherci",
+		string(status), "", description, context,
 	}
 	log.Printf("status: %#v", status)
 

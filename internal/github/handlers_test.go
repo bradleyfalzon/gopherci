@@ -176,14 +176,15 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 
 func TestPushConfig(t *testing.T) {
 	want := AnalyseConfig{
-		eventType:      analyser.EventTypePush,
-		installationID: 1,
-		statusesURL:    "https://github.com/owner/repo/status/abcdef",
-		baseURL:        "https://github.com/owner/repo.git",
-		baseRef:        "abcdef~2",
-		headURL:        "https://github.com/owner/repo.git",
-		headRef:        "abcdef",
-		goSrcPath:      "github.com/owner/repo",
+		eventType:       analyser.EventTypePush,
+		installationID:  1,
+		statusesContext: "ci/gopherci/push",
+		statusesURL:     "https://github.com/owner/repo/status/abcdef",
+		baseURL:         "https://github.com/owner/repo.git",
+		baseRef:         "abcdef~2",
+		headURL:         "https://github.com/owner/repo.git",
+		headRef:         "abcdef",
+		goSrcPath:       "github.com/owner/repo",
 	}
 	e := &github.PushEvent{
 		Installation: &github.Installation{
@@ -207,18 +208,19 @@ func TestPushConfig(t *testing.T) {
 
 func TestPullRequestConfig(t *testing.T) {
 	want := AnalyseConfig{
-		eventType:      analyser.EventTypePullRequest,
-		installationID: 1,
-		statusesURL:    "https://github.com/owner/repo/status/abcdef",
-		baseURL:        "https://github.com/owner/repo.git",
-		baseRef:        "base-branch",
-		headURL:        "https://github.com/owner/repo.git",
-		headRef:        "head-branch",
-		goSrcPath:      "github.com/owner/repo",
-		owner:          "owner",
-		repo:           "repo",
-		pr:             2,
-		sha:            "abcdef",
+		eventType:       analyser.EventTypePullRequest,
+		installationID:  1,
+		statusesContext: "ci/gopherci/pr",
+		statusesURL:     "https://github.com/owner/repo/status/abcdef",
+		baseURL:         "https://github.com/owner/repo.git",
+		baseRef:         "base-branch",
+		headURL:         "https://github.com/owner/repo.git",
+		headRef:         "head-branch",
+		goSrcPath:       "github.com/owner/repo",
+		owner:           "owner",
+		repo:            "repo",
+		pr:              2,
+		sha:             "abcdef",
 	}
 	e := &github.PullRequestEvent{
 		Action: github.String("opened"),
@@ -335,18 +337,19 @@ func TestAnalyse(t *testing.T) {
 	}
 
 	cfg := AnalyseConfig{
-		eventType:      analyser.EventTypePullRequest,
-		installationID: installationID,
-		statusesURL:    ts.URL + "/status-url",
-		baseURL:        "https://github.com/owner/repo.git",
-		baseRef:        "base-branch",
-		headURL:        "https://github.com/owner/repo.git",
-		headRef:        "head-branch",
-		goSrcPath:      "github.com/owner/repo",
-		owner:          expectedOwner,
-		repo:           expectedRepo,
-		pr:             expectedPR,
-		sha:            expectedCmtSHA,
+		eventType:       analyser.EventTypePullRequest,
+		installationID:  installationID,
+		statusesContext: "ci/gopherci/pr",
+		statusesURL:     ts.URL + "/status-url",
+		baseURL:         "https://github.com/owner/repo.git",
+		baseRef:         "base-branch",
+		headURL:         "https://github.com/owner/repo.git",
+		headRef:         "head-branch",
+		goSrcPath:       "github.com/owner/repo",
+		owner:           expectedOwner,
+		repo:            expectedRepo,
+		pr:              expectedPR,
+		sha:             expectedCmtSHA,
 	}
 
 	err := g.Analyse(cfg)
