@@ -41,7 +41,7 @@ type GCPPubSubQueue struct {
 }
 
 var _ Queuer = &GCPPubSubQueue{}
-var cxnTimeout = 10 * time.Second
+var cxnTimeout = 15 * time.Second
 
 // NewGCPPubSubQueue creates a new Queuer and listens on the queue, sending
 // new jobs to the channel c, projectID is required but topicName is optional.

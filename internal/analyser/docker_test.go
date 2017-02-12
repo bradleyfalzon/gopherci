@@ -8,17 +8,17 @@ import (
 func TestDocker(t *testing.T) {
 	docker, err := NewDocker(DockerDefaultImage)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("unexpected error initialising docker: %v", err)
 	}
 
 	exec, err := docker.NewExecuter("github.com/gopherci/gopherci")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("unexpected error in new executer: %v", err)
 	}
 
 	out, err := exec.Execute([]string{"pwd"})
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Errorf("unexpected error executing pwd: %v", err)
 	}
 
 	// Ensure current working directory is project path
