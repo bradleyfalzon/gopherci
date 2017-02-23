@@ -15,7 +15,7 @@ during the Pull Request CI tests.
 You'll need:
 
 - Go workspace
-- MySQL server 
+- MySQL server
     - Configure .env with connection details
     - Migrations are handled on start up, and are stored in the migrations directory
     - To migrate down, run `gopherci down`
@@ -47,9 +47,16 @@ instead of the default:
             - Pull request event (check PRs to repository)
     - Installed on: Only on this account
 - Once you've registered the integration
-	- Generate private key, save it somewhere accessible to GopherCI and set the .env file or environment
-	- Record the integration id in the .env file or environment
+    - Generate private key, save it somewhere accessible to GopherCI and set the .env file or environment
+    - Record the integration id in the .env file or environment
 - Start GopherCI
 - Install the GitHub integration
 - GopherCI should then receive the web hook
 - Create a test repo
+
+# Integration Tests
+
+Integration tests can be ran using the `go test -tags=integration ./...` command. This requires a series of environment
+variables set, see `.env.example` for a list and description. A GitHub account is also required, along with a repository
+and personal access token, for this reason it's recommended to use a test account to avoid the issues and comments being
+added to your profile, and to ensure the personal access token has minimal access.
