@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -63,7 +64,7 @@ func TestWriteIssues(t *testing.T) {
 		issues = append(issues, analyser.Issue{File: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody})
 	}
 
-	suppressed, err := i.WriteIssues(expectedOwner, expectedRepo, expectedPR, expectedCmtSHA, issues)
+	suppressed, err := i.WriteIssues(context.Background(), expectedOwner, expectedRepo, expectedPR, expectedCmtSHA, issues)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

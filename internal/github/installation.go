@@ -2,6 +2,7 @@ package github
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -59,7 +60,7 @@ const (
 )
 
 // SetStatus sets the CI Status API
-func (i *Installation) SetStatus(context, statusURL string, status StatusState, description string) error {
+func (i *Installation) SetStatus(ctx context.Context, context, statusURL string, status StatusState, description string) error {
 	s := struct {
 		State       string `json:"state,omitempty"`
 		TargetURL   string `json:"target_url,omitempty"`
@@ -79,7 +80,7 @@ func (i *Installation) SetStatus(context, statusURL string, status StatusState, 
 	if err != nil {
 		return err
 	}
-	resp, err := i.client.Do(req, nil)
+	resp, err := i.client.Do(ctx, req, nil)
 	if err != nil {
 		return err
 	}
@@ -99,7 +100,7 @@ const maxIssueComments = 10
 // WriteIssues takes a slice of issues and creates a pull request comment for
 // each issue on a given owner, repo, pr and commit hash. Returns on the first
 // error encountered.
-func (i *Installation) WriteIssues(owner, repo string, prNumber int, commit string, issues []analyser.Issue) (suppressed int, err error) {
+func (i *Installation) WriteIssues(ctx context.Context, owner, repo string, prNumber int, commit string, issues []analyser.Issue) (suppressed int, err error) {
 	for n, issue := range issues {
 		if n >= maxIssueComments {
 			suppressed = len(issues) - maxIssueComments
@@ -111,7 +112,7 @@ func (i *Installation) WriteIssues(owner, repo string, prNumber int, commit stri
 			Path:     github.String(issue.File),
 			Position: github.Int(issue.HunkPos),
 		}
-		_, resp, err := i.client.PullRequests.CreateComment(owner, repo, prNumber, comment)
+		_, resp, err := i.client.PullRequests.CreateComment(ctx, owner, repo, prNumber, comment)
 		if err != nil {
 			return suppressed, errors.Wrapf(err, "github api response rate: %v", resp.Rate)
 		}

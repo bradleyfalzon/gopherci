@@ -1,11 +1,13 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/google/go-github/github"
@@ -132,6 +134,10 @@ type AnalyseConfig struct {
 func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 	log.Printf("analysing config: %#v", cfg)
 
+	// For functions that support context, set a maximum execution time.
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancelFunc()
+
 	// Lookup installation
 	install, err := g.NewInstallation(cfg.installationID)
 	if err != nil {
@@ -148,7 +154,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 	}
 
 	// Set the CI status API to pending
-	err = install.SetStatus(cfg.statusesContext, cfg.statusesURL, StatusStatePending, "In progress")
+	err = install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStatePending, "In progress")
 	if err != nil {
 		return errors.Wrapf(err, "could not set status to pending for %v", cfg.statusesURL)
 	}
@@ -165,7 +171,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 
 	issues, err := analyser.Analyse(g.analyser, tools, acfg)
 	if err != nil {
-		if serr := install.SetStatus(cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error"); serr != nil {
+		if serr := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error"); serr != nil {
 			log.Printf("could not set status to error for %v: %s", cfg.statusesURL, serr)
 		}
 		return errors.Wrap(err, "could not run analyser")
@@ -177,7 +183,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 	// pushes, there are no comments, so suppressed is 0.
 	var suppressed = 0
 	if cfg.pr != 0 {
-		suppressed, err = install.WriteIssues(cfg.owner, cfg.repo, cfg.pr, cfg.sha, issues)
+		suppressed, err = install.WriteIssues(ctx, cfg.owner, cfg.repo, cfg.pr, cfg.sha, issues)
 		if err != nil {
 			return errors.Wrap(err, "could not write comment")
 		}
@@ -186,7 +192,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 
 	// Set the CI status API to success
 	statusDesc := statusDesc(issues, suppressed)
-	if err := install.SetStatus(cfg.statusesContext, cfg.statusesURL, StatusStateSuccess, statusDesc); err != nil {
+	if err := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateSuccess, statusDesc); err != nil {
 		return errors.Wrapf(err, "could not set status to success for %v", cfg.statusesURL)
 	}
 
