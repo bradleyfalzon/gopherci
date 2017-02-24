@@ -8,9 +8,9 @@ import (
 
 func TestMemoryQueue(t *testing.T) {
 	var (
-		ctx, cancelFunc = context.WithCancel(context.Background())
-		wg              sync.WaitGroup
-		c               = make(chan interface{})
+		ctx, cancel = context.WithCancel(context.Background())
+		wg          sync.WaitGroup
+		c           = make(chan interface{})
 	)
 	q := NewMemoryQueue(ctx, &wg, c)
 
@@ -20,5 +20,5 @@ func TestMemoryQueue(t *testing.T) {
 	if have := <-c; have != job {
 		t.Errorf("have: %#v, want: %#v", have, job)
 	}
-	cancelFunc()
+	cancel()
 }

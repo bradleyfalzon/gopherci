@@ -24,10 +24,10 @@ func TestGCPPubSubQueue(t *testing.T) {
 	//defer leaktest.Check(t)() // ensure all goroutines exit
 
 	var (
-		ctx, cancelFunc = context.WithCancel(context.Background())
-		wg              sync.WaitGroup
-		c               = make(chan interface{})
-		topic           = fmt.Sprintf("%s-unit-tests-%v", defaultTopicName, time.Now().Unix())
+		ctx, cancel = context.WithCancel(context.Background())
+		wg          sync.WaitGroup
+		c           = make(chan interface{})
+		topic       = fmt.Sprintf("%s-unit-tests-%v", defaultTopicName, time.Now().Unix())
 	)
 	q, err := NewGCPPubSubQueue(ctx, &wg, c, projectID, topic)
 	if err != nil {
@@ -51,7 +51,7 @@ func TestGCPPubSubQueue(t *testing.T) {
 		t.Errorf("have (concrete): %#v, want: %#v", *concrete, job)
 	}
 
-	cancelFunc()
+	cancel()
 }
 
 func TestGCPPubSubQueue_timeout(t *testing.T) {

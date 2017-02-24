@@ -159,8 +159,8 @@ func (it *IntegrationTest) WaitForSuccess(ref string) {
 }
 
 func TestGitHubComments(t *testing.T) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancelFunc()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
 
 	it := NewIntegrationTest(ctx, t)
 	defer it.Close()

@@ -30,8 +30,8 @@ func main() {
 	srv := &http.Server{Addr: ":3000"} // http server, for graceful shutdown
 
 	// Graceful shutdown handler
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	go SignalHandler(cancelFunc, srv)
+	ctx, cancel := context.WithCancel(context.Background())
+	go SignalHandler(cancel, srv)
 
 	switch {
 	case os.Getenv("GITHUB_ID") == "":
@@ -156,7 +156,7 @@ func main() {
 	log.Println("main: listening on", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Println("main: http server error:", err)
-		cancelFunc()
+		cancel()
 	}
 
 	// Wait for current item in queue to finish

@@ -135,8 +135,8 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 	log.Printf("analysing config: %#v", cfg)
 
 	// For functions that support context, set a maximum execution time.
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 15*time.Minute)
-	defer cancelFunc()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
 
 	// Lookup installation
 	install, err := g.NewInstallation(cfg.installationID)
