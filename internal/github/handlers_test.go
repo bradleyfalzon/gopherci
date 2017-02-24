@@ -300,6 +300,11 @@ func TestAnalyse(t *testing.T) {
 			// respond with any token to installation transport
 			fmt.Fprintln(w, "{}")
 		case fmt.Sprintf("/repos/%v/%v/pulls/%v/comments", expectedOwner, expectedRepo, expectedPR):
+			if r.Method == "GET" {
+				// list comments - respond with empty array
+				fmt.Fprintln(w, "[]")
+				break
+			}
 			expected := github.PullRequestComment{
 				Body:     github.String(expectedCmtBody),
 				Path:     github.String(expectedCmtPath),

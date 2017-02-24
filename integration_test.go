@@ -35,7 +35,7 @@ type IntegrationTest struct {
 // NewIntegrationTest creates an environment for running integration tests by
 // creating file system temporary directories, starting gopherci and setting
 // up a github repository. Must be closed when finished.
-func NewIntegrationTest(t *testing.T) *IntegrationTest {
+func NewIntegrationTest(ctx context.Context, t *testing.T) *IntegrationTest {
 	// Load environment from .env, ignore errors as it's optional and dev only
 	_ = godotenv.Load()
 
@@ -73,7 +73,7 @@ func NewIntegrationTest(t *testing.T) *IntegrationTest {
 	it.t.Logf("GitHub Personal Access Token len %v", len(os.Getenv("INTEGRATION_GITHUB_PAT")))
 
 	// Obtain the clone URL and also test the personal access token.
-	repo, _, err := it.github.Repositories.Get(it.owner, it.repo)
+	repo, _, err := it.github.Repositories.Get(ctx, it.owner, it.repo)
 	if err != nil {
 		it.t.Fatalf("could not get repository information for %v/%v using personal access token: %v", it.owner, it.repo, err)
 	}
@@ -135,7 +135,7 @@ func (it *IntegrationTest) WaitForSuccess(ref string) {
 	timeout := 60 * time.Second
 	start := time.Now()
 	for time.Now().Before(start.Add(timeout)) {
-		statuses, _, err := it.github.Repositories.GetCombinedStatus(it.owner, it.repo, ref, nil)
+		statuses, _, err := it.github.Repositories.GetCombinedStatus(context.Background(), it.owner, it.repo, ref, nil)
 		if err != nil {
 			it.t.Fatalf("could not get combined statuses: %v", err)
 		}
@@ -159,7 +159,10 @@ func (it *IntegrationTest) WaitForSuccess(ref string) {
 }
 
 func TestGitHubComments(t *testing.T) {
-	it := NewIntegrationTest(t)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancelFunc()
+
+	it := NewIntegrationTest(ctx, t)
 	defer it.Close()
 
 	// Push a branch which contains issues
@@ -167,7 +170,7 @@ func TestGitHubComments(t *testing.T) {
 	it.Exec("issue-comments.sh", branch)
 
 	// Make PR
-	pr, _, err := it.github.PullRequests.Create(it.owner, it.repo, &github.NewPullRequest{
+	pr, _, err := it.github.PullRequests.Create(ctx, it.owner, it.repo, &github.NewPullRequest{
 		Title: github.String("pr title"),
 		Head:  github.String(branch),
 		Base:  github.String("master"),
@@ -181,7 +184,7 @@ func TestGitHubComments(t *testing.T) {
 	time.Sleep(5 * time.Second) // wait for comments to appear
 
 	// Make sure the expected comments appear
-	comments, _, err := it.github.PullRequests.ListComments(it.owner, it.repo, *pr.Number, nil)
+	comments, _, err := it.github.PullRequests.ListComments(ctx, it.owner, it.repo, *pr.Number, nil)
 	if err != nil {
 		t.Fatalf("could not get pull request comments: %v", err)
 	}
@@ -197,5 +200,24 @@ func TestGitHubComments(t *testing.T) {
 	}
 	if want := "foo.go"; *comments[0].Path != want {
 		t.Fatalf("have comments path %q want %q", *comments[0].Path, want)
+	}
+
+	it.Exec("dupe-issue-comments.sh")
+
+	it.WaitForSuccess(branch)
+
+	time.Sleep(5 * time.Second) // wait for comments to appear
+
+	// dupe-issue-comments.sh pushes another issue to the same branch, there
+	// will then be a scenario where gopherci's second run would duplicate the
+	// existing comment.
+
+	comments, _, err = it.github.PullRequests.ListComments(ctx, it.owner, it.repo, *pr.Number, nil)
+	if err != nil {
+		t.Fatalf("could not get pull request comments 2: %v", err)
+	}
+
+	if want := 2; len(comments) != want {
+		t.Fatalf("have %v comments after second push want %v", len(comments), want)
 	}
 }
