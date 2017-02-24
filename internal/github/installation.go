@@ -97,25 +97,44 @@ func (i *Installation) SetStatus(ctx context.Context, context, statusURL string,
 // writeissues is called multiple times, such is multiple syncronise events.
 const maxIssueComments = 10
 
+// FilterIssues deduplicates issues by checking the existing pull request for
+// existing comments and returns comments that don't already exist.
+// Additionally, only a maximum amount of issues will be returned, the number
+// of total suppressed comments is returned.
+func (i *Installation) FilterIssues(ctx context.Context, owner, repo string, prNumber int, issues []analyser.Issue) (suppressed int, filtered []analyser.Issue, err error) {
+	ecomments, _, err := i.client.PullRequests.ListComments(ctx, owner, repo, prNumber, nil)
+	if err != nil {
+		return 0, nil, errors.Wrap(err, "could not list existing comments")
+	}
+	for i, issue := range issues {
+		for _, ec := range ecomments {
+			if issue.File == *ec.Path && issue.HunkPos == *ec.Position && issue.Issue == *ec.Body {
+				issues = append(issues[:i], issues[i+1:]...)
+			}
+		}
+	}
+	// Of the de-duplicated issues, only return maxIssuesComments
+	if len(issues) > maxIssueComments {
+		return len(issues) - maxIssueComments, issues[:maxIssueComments], nil
+	}
+	return 0, issues, nil
+}
+
 // WriteIssues takes a slice of issues and creates a pull request comment for
 // each issue on a given owner, repo, pr and commit hash. Returns on the first
 // error encountered.
-func (i *Installation) WriteIssues(ctx context.Context, owner, repo string, prNumber int, commit string, issues []analyser.Issue) (suppressed int, err error) {
-	for n, issue := range issues {
-		if n >= maxIssueComments {
-			suppressed = len(issues) - maxIssueComments
-			break
-		}
+func (i *Installation) WriteIssues(ctx context.Context, owner, repo string, prNumber int, commit string, issues []analyser.Issue) error {
+	for _, issue := range issues {
 		comment := &github.PullRequestComment{
 			Body:     github.String(issue.Issue),
 			CommitID: github.String(commit),
 			Path:     github.String(issue.File),
 			Position: github.Int(issue.HunkPos),
 		}
-		_, resp, err := i.client.PullRequests.CreateComment(ctx, owner, repo, prNumber, comment)
+		_, _, err := i.client.PullRequests.CreateComment(ctx, owner, repo, prNumber, comment)
 		if err != nil {
-			return suppressed, errors.Wrapf(err, "github api response rate: %v", resp.Rate)
+			return errors.Wrap(err, "could not post comment")
 		}
 	}
-	return suppressed, nil
+	return nil
 }

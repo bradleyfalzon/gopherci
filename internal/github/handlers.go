@@ -183,9 +183,14 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 	// pushes, there are no comments, so suppressed is 0.
 	var suppressed = 0
 	if cfg.pr != 0 {
-		suppressed, err = install.WriteIssues(ctx, cfg.owner, cfg.repo, cfg.pr, cfg.sha, issues)
+		suppressed, issues, err = install.FilterIssues(ctx, cfg.owner, cfg.repo, cfg.pr, issues)
 		if err != nil {
-			return errors.Wrap(err, "could not write comment")
+			return err
+		}
+
+		err = install.WriteIssues(ctx, cfg.owner, cfg.repo, cfg.pr, cfg.sha, issues)
+		if err != nil {
+			return err
 		}
 		log.Printf("wrote %v issues as comments, suppressed %v", len(issues)-suppressed, suppressed)
 	}
