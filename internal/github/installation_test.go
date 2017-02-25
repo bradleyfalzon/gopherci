@@ -58,11 +58,24 @@ func TestFilterIssues_deduplicate(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.RequestURI {
 		case fmt.Sprintf("/repos/%v/%v/pulls/%v/comments", expectedOwner, expectedRepo, expectedPR):
-			comments := []*github.PullRequestComment{{
-				Body:     github.String(expectedCmtBody),
-				Path:     github.String(expectedCmtPath),
-				Position: github.Int(expectedCmtPos),
-			}}
+			comments := []*github.PullRequestComment{
+				{
+					Body:     github.String(expectedCmtBody),
+					Path:     github.String(expectedCmtPath),
+					Position: github.Int(expectedCmtPos),
+				},
+				{
+					Body:     github.String(expectedCmtBody),
+					Path:     github.String(expectedCmtPath),
+					Position: github.Int(expectedCmtPos + 2),
+				},
+				{
+					// Duplicate comment
+					Body:     github.String(expectedCmtBody),
+					Path:     github.String(expectedCmtPath),
+					Position: github.Int(expectedCmtPos + 2),
+				},
+			}
 			json, _ := json.Marshal(comments)
 			fmt.Fprint(w, string(json))
 		}
@@ -72,14 +85,18 @@ func TestFilterIssues_deduplicate(t *testing.T) {
 	i := Installation{client: github.NewClient(nil)}
 	i.client.BaseURL, _ = url.Parse(ts.URL)
 
-	var issues = []analyser.Issue{{File: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody}}
+	var issues = []analyser.Issue{
+		{File: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody},     // remove
+		{File: expectedCmtPath, HunkPos: expectedCmtPos + 1, Issue: expectedCmtBody}, // keep
+		{File: expectedCmtPath, HunkPos: expectedCmtPos + 2, Issue: expectedCmtBody}, // remove
+	}
 
 	_, filtered, err := i.FilterIssues(context.Background(), expectedOwner, expectedRepo, expectedPR, issues)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if want := 0; len(filtered) != want {
+	if want := 1; len(filtered) != want {
 		t.Errorf("filtered comment count %v does not match %v", len(filtered), want)
 	}
 }

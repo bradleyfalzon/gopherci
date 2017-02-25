@@ -106,10 +106,15 @@ func (i *Installation) FilterIssues(ctx context.Context, owner, repo string, prN
 	if err != nil {
 		return 0, nil, errors.Wrap(err, "could not list existing comments")
 	}
-	for i, issue := range issues {
+	// remove duplicate comments, as we're remove elements based on the index
+	// start from last position and work backwards to keep indexes consistent
+	// even after removing elements.
+	for i := len(issues) - 1; i >= 0; i-- {
+		issue := issues[i]
 		for _, ec := range ecomments {
 			if issue.File == *ec.Path && issue.HunkPos == *ec.Position && issue.Issue == *ec.Body {
 				issues = append(issues[:i], issues[i+1:]...)
+				break
 			}
 		}
 	}
