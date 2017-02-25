@@ -57,10 +57,24 @@ type Issue struct {
 // Executer executes a single command in a contained environment.
 type Executer interface {
 	// Execute executes a command and returns the combined stdout and stderr,
-	// along with an error if any. Must not be called after Stop().
+	// along with an error if any. Must not be called after Stop(). If the
+	// command returns a non-zero exit code, an error of type NonZeroError
+	// is returned.
 	Execute([]string) ([]byte, error)
 	// Stop stops the executer and allows it to cleanup, if applicable.
 	Stop() error
+}
+
+// NonZeroError maybe returned by an Executer when the command executed returns
+// with a non-zero exit status.
+type NonZeroError struct {
+	args     []string
+	ExitCode int // ExitCode is the non zero exit code
+}
+
+// Error implements the error interface.
+func (e *NonZeroError) Error() string {
+	return fmt.Sprintf("%v returned exit code %v", e.args, e.ExitCode)
 }
 
 // EventType defines the type of even which needs to be analysed, as there
@@ -164,10 +178,13 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 			}
 			args = append(args, arg)
 		}
-		// ignore errors, often it's about the exit status
-		// TODO check these errors better, other static analysis tools check the code
-		// explicitly or at least don't ignore it
-		out, _ := exec.Execute(args)
+		out, err := exec.Execute(args)
+		switch err.(type) {
+		case nil, *NonZeroError:
+			// Ignore non-zero exit codes from tools, these are often normal.
+		default:
+			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+		}
 		log.Printf("%v output:\n%s", tool.Name, out)
 
 		checker := revgrep.Checker{

@@ -139,7 +139,7 @@ func (e *DockerExecuter) Execute(args []string) ([]byte, error) {
 		return nil, errors.Wrap(err, fmt.Sprintf("could not inspect exec for containerID %v", e.container.ID))
 	}
 	if inspect.ExitCode != 0 {
-		return buf.Bytes(), fmt.Errorf("exit code: %v, config: %+v", inspect.ExitCode, inspect.ProcessConfig)
+		return buf.Bytes(), &NonZeroError{ExitCode: inspect.ExitCode, args: args}
 	}
 
 	return buf.Bytes(), nil
