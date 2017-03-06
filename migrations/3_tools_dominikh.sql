@@ -5,4 +5,5 @@ INSERT INTO tools (name, url, path, args, `regexp`) VALUES
     ("unused", "https://github.com/dominikh/go-tools", "unused", "./...", "");
 
 -- +migrate Down
-
+-- +migrate StatementBegin
+-- +migrate StatementEnd
