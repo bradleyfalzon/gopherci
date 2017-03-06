@@ -2,6 +2,7 @@ package analyser
 
 import (
 	"log"
+	"strings"
 	"testing"
 )
 
@@ -33,9 +34,9 @@ func TestDocker(t *testing.T) {
 		t.Errorf("\nwant: %q\nhave: %q", want, out)
 	}
 
-	wantPrefix := "exit code: 1"
-	if err.Error()[:len(wantPrefix)] != wantPrefix {
-		t.Errorf("\nwantPrefix: %q\nhave: %q", wantPrefix, err)
+	wantSuffix := "exit code 1"
+	if !strings.HasSuffix(err.Error(), wantSuffix) {
+		t.Errorf("\nwantSuffix: %q\nhave: %q", wantSuffix, err)
 	}
 
 	err = exec.Stop()

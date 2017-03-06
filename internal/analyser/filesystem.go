@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -71,7 +72,11 @@ func (e *FileSystemExecuter) Execute(args []string) ([]byte, error) {
 	cmd.Args = args
 	cmd.Dir = e.projpath
 	cmd.Env = []string{"GOPATH=" + e.gopath, "PATH=" + os.Getenv("PATH")}
-	return cmd.CombinedOutput()
+	out, err := cmd.CombinedOutput()
+	if msg, ok := err.(*exec.ExitError); ok {
+		return out, &NonZeroError{ExitCode: msg.Sys().(syscall.WaitStatus).ExitStatus(), args: args}
+	}
+	return out, err
 }
 
 // Stop implements the Executer interface

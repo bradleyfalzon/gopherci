@@ -68,6 +68,9 @@ index 0000000..6362395
 	if len(args) > 0 && args[0] == "tool" {
 		return []byte(`main.go:1: error`), nil
 	}
+	if len(args) > 0 && args[0] == "isFileGenerated" {
+		return nil, &analyser.NonZeroError{ExitCode: 1}
+	}
 	return nil, nil
 }
 func (a *mockAnalyser) Stop() error { return nil }
