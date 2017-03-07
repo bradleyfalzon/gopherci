@@ -147,7 +147,6 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, patch)
 	}
-	log.Printf("%v output: %s", args, bytes.TrimSpace(patch))
 
 	// install dependencies, some static analysis tools require building a project
 	args = []string{"install-deps.sh"}
