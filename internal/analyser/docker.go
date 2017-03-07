@@ -115,6 +115,7 @@ func (e *DockerExecuter) Execute(args []string) ([]byte, error) {
 		Container:    e.container.ID,
 	}
 
+	log.Printf("docker: creating exec for cmd: %v", cmd) // additional debug to troubleshoot unresponsive instance
 	exec, err := e.client.CreateExec(createOptions)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("could not create exec for containerID %v", e.container.ID))
