@@ -2,6 +2,7 @@ package analyser
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -23,7 +24,7 @@ const (
 type Analyser interface {
 	// NewExecuter returns an Executer with the working directory set to
 	// $GOPATH/src/<goSrcPath>.
-	NewExecuter(goSrcPath string) (Executer, error)
+	NewExecuter(ctx context.Context, goSrcPath string) (Executer, error)
 }
 
 // Config hold configuration options for use in analyser. All options
@@ -60,9 +61,9 @@ type Executer interface {
 	// along with an error if any. Must not be called after Stop(). If the
 	// command returns a non-zero exit code, an error of type NonZeroError
 	// is returned.
-	Execute([]string) ([]byte, error)
+	Execute(context.Context, []string) ([]byte, error)
 	// Stop stops the executer and allows it to cleanup, if applicable.
-	Stop() error
+	Stop(context.Context) error
 }
 
 // NonZeroError maybe returned by an Executer when the command executed returns
@@ -93,9 +94,9 @@ const (
 // Analyse downloads a repository set in config in an environment provided by
 // analyser, running the series of tools. Returns issues from tools that have
 // are likely to have been caused by a change.
-func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error) {
+func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Config) ([]Issue, error) {
 	// Get a new executer/environment to execute in
-	exec, err := analyser.NewExecuter(config.GoSrcPath)
+	exec, err := analyser.NewExecuter(ctx, config.GoSrcPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "analyser could create new executer")
 	}
@@ -107,7 +108,7 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 	case EventTypePullRequest:
 		// clone repo
 		args := []string{"git", "clone", "--depth", "1", "--branch", config.HeadRef, "--single-branch", config.HeadURL, "."}
-		out, err := exec.Execute(args)
+		out, err := exec.Execute(ctx, args)
 		if err != nil {
 			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
@@ -115,7 +116,7 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 		// This is a PR, fetch base as some tools (apicompat) needs to
 		// reference it.
 		args = []string{"git", "fetch", "--depth", "1", config.BaseURL, config.BaseRef}
-		out, err = exec.Execute(args)
+		out, err = exec.Execute(ctx, args)
 		if err != nil {
 			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
@@ -125,14 +126,14 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 		// therefore cannot be shallow (or if it is, would required a very
 		// large depth and --no-single-branch).
 		args := []string{"git", "clone", config.HeadURL, "."}
-		out, err := exec.Execute(args)
+		out, err := exec.Execute(ctx, args)
 		if err != nil {
 			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
 
 		// Checkout sha
 		args = []string{"git", "checkout", config.HeadRef}
-		out, err = exec.Execute(args)
+		out, err = exec.Execute(ctx, args)
 		if err != nil {
 			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
@@ -143,14 +144,14 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 
 	// create a unified diff for use by revgrep
 	args := []string{"git", "diff", fmt.Sprintf("%v...%v", baseRef, config.HeadRef)}
-	patch, err := exec.Execute(args)
+	patch, err := exec.Execute(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, patch)
 	}
 
 	// install dependencies, some static analysis tools require building a project
 	args = []string{"install-deps.sh"}
-	out, err := exec.Execute(args)
+	out, err := exec.Execute(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 	}
@@ -160,7 +161,7 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 	// path for the filename in an issue (used by some tools) to relative (used by
 	// patch).
 	args = []string{"pwd"}
-	out, err = exec.Execute(args)
+	out, err = exec.Execute(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 	}
@@ -177,7 +178,7 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 			}
 			args = append(args, arg)
 		}
-		out, err := exec.Execute(args)
+		out, err := exec.Execute(ctx, args)
 		switch err.(type) {
 		case nil, *NonZeroError:
 			// Ignore non-zero exit codes from tools, these are often normal.
@@ -202,7 +203,7 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 			// Remove issues in generated files, isFileGenereated will return
 			// 0 for file is generated or 1 for file is not generated.
 			args = []string{"isFileGenerated", pwd, issue.File}
-			out, err := exec.Execute(args)
+			out, err := exec.Execute(ctx, args)
 			log.Printf("isFileGenerated output: %s", bytes.TrimSpace(out))
 			switch err {
 			case nil:
@@ -223,7 +224,7 @@ func Analyse(analyser Analyser, tools []db.Tool, config Config) ([]Issue, error)
 	}
 
 	log.Printf("stopping executer")
-	if err := exec.Stop(); err != nil {
+	if err := exec.Stop(ctx); err != nil {
 		log.Printf("warning: could not stop executer: %v", err)
 	}
 	log.Printf("finished stopping executer")

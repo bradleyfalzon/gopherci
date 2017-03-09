@@ -1,6 +1,7 @@
 package analyser
 
 import (
+	"context"
 	"os"
 	"testing"
 )
@@ -18,8 +19,9 @@ func TestFileSystem(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
+	ctx := context.Background()
 
-	exec, err := fs.NewExecuter("github.com/gopherci/gopherci")
+	exec, err := fs.NewExecuter(ctx, "github.com/gopherci/gopherci")
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -29,7 +31,7 @@ func TestFileSystem(t *testing.T) {
 		t.Errorf("expected %q to exist", gopath)
 	}
 
-	out, err := exec.Execute([]string{"bash", "-c", "echo $GOPATH $PATH"})
+	out, err := exec.Execute(ctx, []string{"bash", "-c", "echo $GOPATH $PATH"})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -38,7 +40,7 @@ func TestFileSystem(t *testing.T) {
 		t.Errorf("\nwant %s\nhave %s", want, out)
 	}
 
-	out, err = exec.Execute([]string{"pwd"})
+	out, err = exec.Execute(ctx, []string{"pwd"})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -48,7 +50,7 @@ func TestFileSystem(t *testing.T) {
 		t.Errorf("\nwant %q\nhave %q", want, out)
 	}
 
-	err = exec.Stop()
+	err = exec.Stop(ctx)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

@@ -2,6 +2,7 @@ package analyser
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -64,7 +65,7 @@ type DockerExecuter struct {
 
 // NewExecuter implements Analyser interface by creating and starting a
 // docker container.
-func (d *Docker) NewExecuter(goSrcPath string) (Executer, error) {
+func (d *Docker) NewExecuter(ctx context.Context, goSrcPath string) (Executer, error) {
 	exec := &DockerExecuter{
 		client:   d.client,
 		projPath: filepath.Join("$GOPATH", "src", goSrcPath),
@@ -73,8 +74,9 @@ func (d *Docker) NewExecuter(goSrcPath string) (Executer, error) {
 	name := fmt.Sprintf("goperci-%d", time.Now().UnixNano())
 
 	createOptions := docker.CreateContainerOptions{
-		Name:   name,
-		Config: &docker.Config{Image: d.image},
+		Name:    name,
+		Config:  &docker.Config{Image: d.image},
+		Context: ctx,
 	}
 
 	// Create container
@@ -86,16 +88,16 @@ func (d *Docker) NewExecuter(goSrcPath string) (Executer, error) {
 	log.Printf("Created containerID %q named %q", exec.container.ID, name)
 
 	// Start container
-	if err := d.client.StartContainer(exec.container.ID, nil); err != nil {
-		exec.Stop()
+	if err := d.client.StartContainerWithContext(exec.container.ID, nil, ctx); err != nil {
+		exec.Stop(ctx)
 		return nil, errors.Wrap(err, "could not start container")
 	}
 	log.Printf("Started containerID %q", exec.container.ID)
 
 	// Make required directories to clone into see bug in #16
 	args := []string{"mkdir", "-p", exec.projPath}
-	if out, err := exec.Execute(args); err != nil {
-		exec.Stop()
+	if out, err := exec.Execute(ctx, args); err != nil {
+		exec.Stop(ctx)
 		return nil, errors.Wrap(err, fmt.Sprintf("could not execute %v, output: %q", args, out))
 	}
 
@@ -104,7 +106,7 @@ func (d *Docker) NewExecuter(goSrcPath string) (Executer, error) {
 
 // Execute implements the Executer interface and runs commands inside a
 // docker container.
-func (e *DockerExecuter) Execute(args []string) ([]byte, error) {
+func (e *DockerExecuter) Execute(ctx context.Context, args []string) ([]byte, error) {
 	// "cd e.projPath; cmd" ignore the errors from cd as the first command
 	// executed is the mkdir
 	cmd := []string{"bash", "-c", fmt.Sprintf(`cd %v; %v`, e.projPath, strings.Join(args, " "))}
@@ -126,6 +128,7 @@ func (e *DockerExecuter) Execute(args []string) ([]byte, error) {
 	startOptions := docker.StartExecOptions{
 		OutputStream: &buf,
 		ErrorStream:  &buf,
+		Context:      ctx,
 	}
 
 	// Start exec and block
@@ -147,8 +150,8 @@ func (e *DockerExecuter) Execute(args []string) ([]byte, error) {
 }
 
 // Stop stops and removes a container ignoring any errors.
-func (e *DockerExecuter) Stop() error {
-	err := e.client.StopContainer(e.container.ID, stopContainerTimeout)
+func (e *DockerExecuter) Stop(ctx context.Context) error {
+	err := e.client.StopContainerWithContext(e.container.ID, stopContainerTimeout, ctx)
 	if err != nil {
 		log.Printf("could not stop containerID %v: %v", e.container.ID, err)
 		// Ignore the error and try to delete the container anyway
@@ -158,6 +161,7 @@ func (e *DockerExecuter) Stop() error {
 		ID:            e.container.ID,
 		RemoveVolumes: true,
 		Force:         true,
+		Context:       ctx,
 	})
 	if err != nil {
 		log.Printf("could not remove containerID %v: %v", e.container.ID, err)

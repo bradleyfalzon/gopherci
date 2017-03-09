@@ -1,6 +1,7 @@
 package analyser
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -37,7 +38,7 @@ func NewFileSystem(base string) (*FileSystem, error) {
 }
 
 // NewExecuter implements the Analyser interface
-func (fs *FileSystem) NewExecuter(goSrcPath string) (Executer, error) {
+func (fs *FileSystem) NewExecuter(_ context.Context, goSrcPath string) (Executer, error) {
 	e := &FileSystemExecuter{}
 	if err := e.mktemp(fs.base, goSrcPath); err != nil {
 		return nil, err
@@ -67,8 +68,8 @@ func (e *FileSystemExecuter) mktemp(base, goSrcPath string) error {
 }
 
 // Execute implements the Executer interface
-func (e *FileSystemExecuter) Execute(args []string) ([]byte, error) {
-	cmd := exec.Command(args[0])
+func (e *FileSystemExecuter) Execute(ctx context.Context, args []string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, args[0])
 	cmd.Args = args
 	cmd.Dir = e.projpath
 	cmd.Env = []string{"GOPATH=" + e.gopath, "PATH=" + os.Getenv("PATH")}
@@ -80,6 +81,6 @@ func (e *FileSystemExecuter) Execute(args []string) ([]byte, error) {
 }
 
 // Stop implements the Executer interface
-func (e *FileSystemExecuter) Stop() error {
+func (e *FileSystemExecuter) Stop(_ context.Context) error {
 	return os.RemoveAll(e.gopath)
 }

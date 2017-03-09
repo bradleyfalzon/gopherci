@@ -1,6 +1,7 @@
 package analyser
 
 import (
+	"context"
 	"log"
 	"strings"
 	"testing"
@@ -11,13 +12,14 @@ func TestDocker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error initialising docker: %v", err)
 	}
+	ctx := context.Background()
 
-	exec, err := docker.NewExecuter("github.com/gopherci/gopherci")
+	exec, err := docker.NewExecuter(ctx, "github.com/gopherci/gopherci")
 	if err != nil {
 		t.Fatalf("unexpected error in new executer: %v", err)
 	}
 
-	out, err := exec.Execute([]string{"pwd"})
+	out, err := exec.Execute(ctx, []string{"pwd"})
 	if err != nil {
 		t.Errorf("unexpected error executing pwd: %v", err)
 	}
@@ -28,7 +30,7 @@ func TestDocker(t *testing.T) {
 	}
 
 	// Ensure error codes are captured
-	out, err = exec.Execute([]string{">&2 echo error; false"})
+	out, err = exec.Execute(ctx, []string{">&2 echo error; false"})
 	log.Printf("%q %q", string(out), err)
 	if want := "error\n"; want != string(out) {
 		t.Errorf("\nwant: %q\nhave: %q", want, out)
@@ -39,7 +41,7 @@ func TestDocker(t *testing.T) {
 		t.Errorf("\nwantSuffix: %q\nhave: %q", wantSuffix, err)
 	}
 
-	err = exec.Stop()
+	err = exec.Stop(ctx)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

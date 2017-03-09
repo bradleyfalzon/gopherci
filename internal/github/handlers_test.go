@@ -51,11 +51,11 @@ type mockAnalyser struct {
 	goSrcPath string
 }
 
-func (a *mockAnalyser) NewExecuter(goSrcPath string) (analyser.Executer, error) {
+func (a *mockAnalyser) NewExecuter(_ context.Context, goSrcPath string) (analyser.Executer, error) {
 	a.goSrcPath = goSrcPath
 	return a, nil
 }
-func (a *mockAnalyser) Execute(args []string) (out []byte, err error) {
+func (a *mockAnalyser) Execute(_ context.Context, args []string) (out []byte, err error) {
 	if len(args) > 1 && args[0] == "git" && args[1] == "diff" {
 		return []byte(`diff --git a/subdir/main.go b/subdir/main.go
 new file mode 100644
@@ -73,7 +73,7 @@ index 0000000..6362395
 	}
 	return nil, nil
 }
-func (a *mockAnalyser) Stop() error { return nil }
+func (a *mockAnalyser) Stop(_ context.Context) error { return nil }
 
 const webhookSecret = "ede9aa6b6e04fafd53f7460fb75644302e249177"
 

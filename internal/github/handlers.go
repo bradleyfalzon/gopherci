@@ -169,7 +169,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 		GoSrcPath: cfg.goSrcPath,
 	}
 
-	issues, err := analyser.Analyse(g.analyser, tools, acfg)
+	issues, err := analyser.Analyse(ctx, g.analyser, tools, acfg)
 	if err != nil {
 		if serr := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error"); serr != nil {
 			log.Printf("could not set status to error for %v: %s", cfg.statusesURL, serr)

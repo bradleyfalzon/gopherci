@@ -1,6 +1,7 @@
 package analyser
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -18,19 +19,19 @@ type mockAnalyser struct {
 var _ Analyser = &mockAnalyser{}
 var _ Executer = &mockAnalyser{}
 
-func (a *mockAnalyser) NewExecuter(_ string) (Executer, error) {
+func (a *mockAnalyser) NewExecuter(_ context.Context, _ string) (Executer, error) {
 	// Return itself
 	return a, nil
 }
 
-func (a *mockAnalyser) Execute(args []string) (out []byte, err error) {
+func (a *mockAnalyser) Execute(_ context.Context, args []string) (out []byte, err error) {
 	a.Executed = append(a.Executed, args)
 	out, a.ExecuteOut = a.ExecuteOut[0], a.ExecuteOut[1:]
 	err, a.ExecuteErr = a.ExecuteErr[0], a.ExecuteErr[1:]
 	return out, err
 }
 
-func (a *mockAnalyser) Stop() error {
+func (a *mockAnalyser) Stop(_ context.Context) error {
 	a.Stopped = true
 	return nil
 }
@@ -87,7 +88,7 @@ index 0000000..6362395
 		},
 	}
 
-	issues, err := Analyse(analyser, tools, cfg)
+	issues, err := Analyse(context.Background(), analyser, tools, cfg)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
@@ -175,7 +176,7 @@ index 0000000..6362395
 		},
 	}
 
-	issues, err := Analyse(analyser, tools, cfg)
+	issues, err := Analyse(context.Background(), analyser, tools, cfg)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
@@ -214,7 +215,7 @@ index 0000000..6362395
 func TestAnalyse_unknown(t *testing.T) {
 	cfg := Config{}
 	analyser := &mockAnalyser{}
-	_, err := Analyse(analyser, nil, cfg)
+	_, err := Analyse(context.Background(), analyser, nil, cfg)
 	if err == nil {
 		t.Fatal("expected error got nil")
 	}
