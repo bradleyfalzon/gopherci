@@ -103,30 +103,6 @@ func main() {
 		log.Fatalf("Unknown ANALYSER option %q", os.Getenv("ANALYSER"))
 	}
 
-	// Queuer
-	var (
-		wg        sync.WaitGroup           // wait for queue to finish before exiting
-		queueChan = make(chan interface{}) // receive jobs on this chan
-	)
-	var q queue.Queuer
-	switch os.Getenv("QUEUER") {
-	case "memory":
-		q = queue.NewMemoryQueue(ctx, &wg, queueChan)
-	case "gcppubsub":
-		switch {
-		case os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID") == "":
-			log.Fatalf("QUEUER_GCPPUBSUB_PROJECT_ID is not set")
-		}
-		q, err = queue.NewGCPPubSubQueue(ctx, &wg, queueChan, os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID"), os.Getenv("QUEUER_GCPPUBSUB_TOPIC"))
-		if err != nil {
-			log.Fatal("Could not initialise GCPPubSubQueue:", err)
-		}
-	case "":
-		log.Fatalln("QUEUER is not set")
-	default:
-		log.Fatalf("Unknown QUEUER option %q", os.Getenv("QUEUER"))
-	}
-
 	// GitHub
 	log.Printf("GitHub Integration ID: %q, GitHub Integration PEM File: %q", os.Getenv("GITHUB_ID"), os.Getenv("GITHUB_PEM_FILE"))
 	integrationID, err := strconv.ParseInt(os.Getenv("GITHUB_ID"), 10, 64)
@@ -139,15 +115,40 @@ func main() {
 		log.Fatalf("could not read private key for GitHub integration: %s", err)
 	}
 
-	gh, err := github.New(analyse, db, q, int(integrationID), integrationKey, os.Getenv("GITHUB_WEBHOOK_SECRET"))
+	// queuePush is used to add a job to the queue
+	var queuePush = make(chan interface{})
+
+	gh, err := github.New(analyse, db, queuePush, int(integrationID), integrationKey, os.Getenv("GITHUB_WEBHOOK_SECRET"))
 	if err != nil {
 		log.Fatalln("could not initialise GitHub:", err)
 	}
 	http.HandleFunc("/gh/webhook", gh.WebHookHandler)
 	http.HandleFunc("/gh/callback", gh.CallBackHandler)
 
-	// Listen for jobs from the queue
-	go queueListen(ctx, queueChan, gh)
+	var (
+		wg         sync.WaitGroup // wait for queue to finish before exiting
+		qProcessor = queueProcessor{github: gh}
+	)
+
+	switch os.Getenv("QUEUER") {
+	case "memory":
+		memq := queue.NewMemoryQueue()
+		memq.Wait(ctx, &wg, queuePush, qProcessor.Process)
+	case "gcppubsub":
+		switch {
+		case os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID") == "":
+			log.Fatalf("QUEUER_GCPPUBSUB_PROJECT_ID is not set")
+		}
+		gcp, err := queue.NewGCPPubSubQueue(ctx, os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID"), os.Getenv("QUEUER_GCPPUBSUB_TOPIC"))
+		if err != nil {
+			log.Fatal("Could not initialise GCPPubSubQueue:", err)
+		}
+		gcp.Wait(ctx, &wg, queuePush, qProcessor.Process)
+	case "":
+		log.Fatalln("QUEUER is not set")
+	default:
+		log.Fatalf("Unknown QUEUER option %q", os.Getenv("QUEUER"))
+	}
 
 	// Health checks
 	http.HandleFunc("/health-check", HealthCheckHandler)
@@ -165,35 +166,32 @@ func main() {
 	log.Println("main: exiting gracefully")
 }
 
+// Queue processor is the callback called by queuer when receiving a job
+type queueProcessor struct {
+	github *github.GitHub
+}
+
 // queueListen listens for jobs on the queue and executes the relevant handlers.
-func queueListen(ctx context.Context, queueChan <-chan interface{}, g *github.GitHub) {
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("queueListen: returning from queueListen")
-			return
-		case job := <-queueChan:
-			start := time.Now()
-			log.Printf("queueListen: reading job type %T", job)
-			var err error
-			switch e := job.(type) {
-			case *gh.PushEvent:
-				err = g.Analyse(github.PushConfig(e))
-				if err != nil {
-					err = errors.Wrapf(err, "cannot analyse push event for sha %v on repo %v", *e.After, *e.Repo.HTMLURL)
-				}
-			case *gh.PullRequestEvent:
-				err = g.Analyse(github.PullRequestConfig(e))
-				if err != nil {
-					err = errors.Wrapf(err, "cannot analyse pr %v", *e.PullRequest.HTMLURL)
-				}
-			default:
-				err = fmt.Errorf("unknown queue job type %T", e)
-			}
-			if err != nil {
-				log.Println("queueListen: processing error:", err)
-			}
-			log.Printf("queueListen: finished processing in %v", time.Since(start))
+func (q *queueProcessor) Process(job interface{}) {
+	start := time.Now()
+	log.Printf("queueProcessor: processing job type %T", job)
+	var err error
+	switch e := job.(type) {
+	case *gh.PushEvent:
+		err = q.github.Analyse(github.PushConfig(e))
+		if err != nil {
+			err = errors.Wrapf(err, "cannot analyse push event for sha %v on repo %v", *e.After, *e.Repo.HTMLURL)
 		}
+	case *gh.PullRequestEvent:
+		err = q.github.Analyse(github.PullRequestConfig(e))
+		if err != nil {
+			err = errors.Wrapf(err, "cannot analyse pr %v", *e.PullRequest.HTMLURL)
+		}
+	default:
+		err = fmt.Errorf("unknown queue job type %T", e)
+	}
+	log.Printf("queueProcessor: finished processing in %v", time.Since(start))
+	if err != nil {
+		log.Println("queueProcessor: processing error:", err)
 	}
 }

@@ -39,11 +39,11 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 		err = g.integrationInstallationEvent(e)
 	case *github.PushEvent:
 		log.Printf("github: push event: installation id: %v", *e.Installation.ID)
-		err = g.queuer.Queue(e)
+		g.queuePush <- e
 	case *github.PullRequestEvent:
 		if validPRAction(*e.Action) {
 			log.Printf("github: pull request event: %v, installation id: %v", *e.Action, *e.Installation.ID)
-			err = g.queuer.Queue(e)
+			g.queuePush <- e
 		}
 	default:
 		log.Printf("github: ignored webhook event: %T", event)

@@ -84,10 +84,11 @@ func setup(t *testing.T) (*GitHub, *mockAnalyser, *db.MockDB) {
 		wg sync.WaitGroup
 		c  = make(chan interface{})
 	)
-	queue := queue.NewMemoryQueue(context.Background(), &wg, c)
+	queue := queue.NewMemoryQueue()
+	queue.Wait(context.Background(), &wg, c, func(job interface{}) {})
 
 	// New GitHub
-	g, err := New(mockAnalyser, memDB, queue, 1, integrationKey, webhookSecret)
+	g, err := New(mockAnalyser, memDB, c, 1, integrationKey, webhookSecret)
 	if err != nil {
 		t.Fatal("could not initialise GitHub:", err)
 	}

@@ -7,41 +7,56 @@ import (
 	"time"
 )
 
+const pollInterval = 500 * time.Millisecond
+
 // MemoryQueue is an in memory queue of infinite size.
 type MemoryQueue struct {
-	ctx   context.Context // stop listening when this context is cancelled
-	c     chan<- interface{}
 	mu    sync.Mutex // protects queue
 	queue []interface{}
 }
 
-var _ Queuer = &MemoryQueue{}
+// NewMemoryQueue creates a new in memory queue
+func NewMemoryQueue() *MemoryQueue {
+	return &MemoryQueue{}
+}
 
-// NewMemoryQueue creates a new Queuer and listens on the queue, sending new
-// jobs to the channel c. Calls wg.Done() when finished after context has ben
-// cancelled and current job has finished.
-func NewMemoryQueue(ctx context.Context, wg *sync.WaitGroup, c chan<- interface{}) *MemoryQueue {
-	q := &MemoryQueue{ctx: ctx, c: c}
+// Wait waits for messages on queuePush and adds them to the queue. New
+// message are checked for regularly and when a new message is ready f
+// will be called with the argument of the job.
+func (q *MemoryQueue) Wait(ctx context.Context, wg *sync.WaitGroup, queuePush <-chan interface{}, f func(interface{})) {
+	// Routine to add jobs to the queue
 	wg.Add(1)
-	go q.listen(wg)
-	return q
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("MemoryQueue job waiter exiting")
+				wg.Done()
+				return
+			case job := <-queuePush:
+				log.Println("MemoryQueue job waiter got message, queuing...")
+				q.mu.Lock()
+				q.queue = append(q.queue, job)
+				q.mu.Unlock()
+			}
+		}
+	}()
+
+	// Routine to listen for jobs and process one at a time
+	wg.Add(1)
+	go func() {
+		q.receive(ctx, f)
+		log.Println("GCPPubSubQueue job receiver exiting")
+		wg.Done()
+	}()
 }
 
-// Queue implements the Queue interface.
-func (q *MemoryQueue) Queue(job interface{}) error {
-	q.mu.Lock()
-	q.queue = append(q.queue, job)
-	q.mu.Unlock()
-	return nil
-}
-
-// listen polls the queue for new jobs and sends them on the pop channel.
-func (q *MemoryQueue) listen(wg *sync.WaitGroup) {
-	defer wg.Done()
-	ticker := time.NewTicker(time.Second) // poll interval
+// receive polls the queue for new jobs and sends them on the pop channel.
+func (q *MemoryQueue) receive(ctx context.Context, f func(interface{})) {
+	ticker := time.NewTicker(pollInterval)
 	for {
 		select {
-		case <-q.ctx.Done():
+		case <-ctx.Done():
 			log.Println("listen stopping")
 			ticker.Stop()
 			return
@@ -54,8 +69,7 @@ func (q *MemoryQueue) listen(wg *sync.WaitGroup) {
 			q.mu.Lock()
 			job, q.queue = q.queue[len(q.queue)-1], q.queue[:len(q.queue)-1]
 			q.mu.Unlock()
-			// this could block for a long time, we're ok with that
-			q.c <- job
+			f(job)
 		}
 	}
 }

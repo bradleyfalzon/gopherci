@@ -8,10 +8,11 @@ import (
 	"sync"
 	"time"
 
+	xContext "golang.org/x/net/context"
+
 	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 
-	"google.golang.org/api/iterator"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -35,20 +36,16 @@ const (
 
 // GCPPubSubQueue is a queue using Google Compute Platform's PubSub product.
 type GCPPubSubQueue struct {
-	ctx   context.Context // stop listening when this context is cancelled
-	c     chan<- interface{}
-	topic *pubsub.Topic
+	topic        *pubsub.Topic
+	subscription *pubsub.Subscription
 }
 
-var _ Queuer = &GCPPubSubQueue{}
 var cxnTimeout = 15 * time.Second
 
-// NewGCPPubSubQueue creates a new Queuer and listens on the queue, sending
-// new jobs to the channel c, projectID is required but topicName is optional.
-// Calls wg.Done() when finished after context has ben cancelled and current
-// job has finished.
-func NewGCPPubSubQueue(ctx context.Context, wg *sync.WaitGroup, c chan<- interface{}, projectID, topicName string) (*GCPPubSubQueue, error) {
-	q := &GCPPubSubQueue{ctx: ctx, c: c}
+// NewGCPPubSubQueue creates connects to Google Pub/Sub with a topic and
+// subscriber in a one-to-one architecture.
+func NewGCPPubSubQueue(ctx context.Context, projectID, topicName string) (*GCPPubSubQueue, error) {
+	q := &GCPPubSubQueue{}
 
 	if projectID == "" {
 		return nil, errors.New("projectID must not be empty")
@@ -78,31 +75,49 @@ func NewGCPPubSubQueue(ctx context.Context, wg *sync.WaitGroup, c chan<- interfa
 	subName := topicName + "-" + defaultSubName
 
 	log.Printf("NewGCPPubSubQueue: creating subscription %q", subName)
-	subscription, err := client.CreateSubscription(cxnCtx, subName, q.topic, 0, nil)
+	q.subscription, err = client.CreateSubscription(cxnCtx, subName, q.topic, 0, nil)
 	if code := grpc.Code(err); code != codes.OK && code != codes.AlreadyExists {
 		return nil, errors.Wrap(err, "NewGCPPubSubQueue: could not create subscription")
 	}
 
-	itr, err := subscription.Pull(q.ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "GCPPubSubQueue: could not pull subscription")
-	}
+	q.subscription.ReceiveSettings.MaxOutstandingMessages = 1 // limit concurrency
 
-	// Close iterator when context closes
-	go func() {
-		<-q.ctx.Done()
-		log.Println("GCPPubSubQueue: closing")
-		itr.Stop()
-		client.Close()
-	}()
-
-	wg.Add(1)
-	go q.listen(wg, itr)
 	return q, nil
 }
 
-// Queue implements the Queue interface.
-func (q *GCPPubSubQueue) Queue(job interface{}) error {
+// Wait waits for messages on queuePush and adds them to the Pub/Sub queue.
+// Upon receiving messages from Pub/Sub, f is invoked with the message. Wait
+// is non-blocking, increments wg for each routine started, and when context
+// is closed will mark the wg as done as routines are shutdown.
+func (q GCPPubSubQueue) Wait(ctx context.Context, wg *sync.WaitGroup, queuePush <-chan interface{}, f func(interface{})) {
+	// Routine to add jobs to the GCP Pub/Sub Queue
+	wg.Add(1)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("GCPPubSubQueue: job waiter exiting")
+				q.topic.Stop()
+				wg.Done()
+				return
+			case job := <-queuePush:
+				log.Println("GCPPubSubQueue: job waiter got message, queuing...")
+				q.queue(ctx, job)
+			}
+		}
+	}()
+
+	// Routine to listen for jobs and process one at a time
+	wg.Add(1)
+	go func() {
+		q.receive(ctx, f)
+		log.Println("GCPPubSubQueue: job receiver exiting")
+		wg.Done()
+	}()
+}
+
+// queue adds a message to the queue.
+func (q *GCPPubSubQueue) queue(ctx context.Context, job interface{}) error {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	if err := enc.Encode(container{job}); err != nil {
@@ -112,11 +127,12 @@ func (q *GCPPubSubQueue) Queue(job interface{}) error {
 	var (
 		msg         = &pubsub.Message{Data: buf.Bytes()}
 		maxAttempts = 3
-		msgIDs      []string
+		msgID       string
 		err         error
 	)
 	for i := 1; i <= maxAttempts; i++ {
-		msgIDs, err = q.topic.Publish(q.ctx, msg)
+		res := q.topic.Publish(ctx, msg)
+		msgID, err = res.Get(ctx)
 		if err == nil {
 			break
 		}
@@ -126,7 +142,7 @@ func (q *GCPPubSubQueue) Queue(job interface{}) error {
 	if err != nil {
 		return errors.Wrap(err, "GCPPubSubQueue: could not publish job")
 	}
-	log.Println("GCPPubSubQueue: published a message with a message ID:", msgIDs[0])
+	log.Println("GCPPubSubQueue: published a message with a message ID:", msgID)
 
 	return nil
 }
@@ -135,27 +151,14 @@ type container struct {
 	Job interface{}
 }
 
-// listen listens for messages from queue and runs the jobs, returns when
-// iterator is stopped, calls wg.Done when returning.
-func (q *GCPPubSubQueue) listen(wg *sync.WaitGroup, itr *pubsub.MessageIterator) {
-	defer wg.Done()
-	for {
-		msg, err := itr.Next()
-		switch {
-		case err == iterator.Done:
-			log.Println("GCPPubSubQueue: stopping listening")
-			return
-		case err != nil:
-			log.Println("GCPPubSubQueue: could not read next message:", err)
-			time.Sleep(3 * time.Second) // back-off
-			continue
-		}
+// receive calls sub.Receive, which blocks forever waiting for new jobs.
+func (q *GCPPubSubQueue) receive(ctx context.Context, f func(interface{})) {
+	err := q.subscription.Receive(ctx, func(ctx xContext.Context, msg *pubsub.Message) {
 		log.Printf("GCPPubSubQueue: processing ID %v, published at %v", msg.ID, msg.PublishTime)
 
 		// Acknowledge the job now, anything else that could fail by this instance
-		// will fail in others.
-		msg.Done(true)
-
+		// will probably fail for others.
+		msg.Ack()
 		log.Printf("GCPPubSubQueue: ack'd ID %v", msg.ID)
 
 		reader := bytes.NewReader(msg.Data)
@@ -164,28 +167,31 @@ func (q *GCPPubSubQueue) listen(wg *sync.WaitGroup, itr *pubsub.MessageIterator)
 		var job container
 		if err := dec.Decode(&job); err != nil {
 			log.Println("GCPPubSubQueue: could not decode job:", err)
-			continue
+			return
 		}
-		log.Printf("GCPPubSubQueue: adding ID %v to job channel", msg.ID)
-		q.c <- job.Job
-		log.Printf("GCPPubSubQueue: successfully added ID %v to job queue", msg.ID)
+		log.Printf("GCPPubSubQueue: process ID %v", msg.ID)
+
+		f(job.Job)
+	})
+	if err != nil && err != context.Canceled {
+		log.Printf("GCPPubSubQueue: could not receive on subscription: %v", err)
 	}
 }
 
-// delete deletes the topic and subcriptions, used to cleanup unit tests
-func (q *GCPPubSubQueue) delete() {
-	itr := q.topic.Subscriptions(q.ctx)
+// delete deletes the topic and subcriptions, used to cleanup unit tests.
+func (q *GCPPubSubQueue) delete(ctx context.Context) {
+	itr := q.topic.Subscriptions(ctx)
 	for {
 		sub, err := itr.Next()
 		if err != nil {
 			break
 		}
-		err = sub.Delete(q.ctx)
+		err = sub.Delete(ctx)
 		if err != nil {
 			log.Println("GCPPubSubQueue: delete subscription error:", err)
 		}
 	}
-	err := q.topic.Delete(q.ctx)
+	err := q.topic.Delete(ctx)
 	if err != nil {
 		log.Println("GCPPubSubQueue: delete topic error:", err)
 	}
