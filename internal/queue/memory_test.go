@@ -2,8 +2,10 @@ package queue
 
 import (
 	"context"
+	"log"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestMemoryQueue(t *testing.T) {
@@ -11,14 +13,23 @@ func TestMemoryQueue(t *testing.T) {
 		ctx, cancel = context.WithCancel(context.Background())
 		wg          sync.WaitGroup
 		c           = make(chan interface{})
+		haveJob     bool
 	)
-	q := NewMemoryQueue(ctx, &wg, c)
+	q := NewMemoryQueue()
 
-	job := 1
-	q.Queue(job)
+	f := func(interface{}) {
+		haveJob = true
+	}
 
-	if have := <-c; have != job {
-		t.Errorf("have: %#v, want: %#v", have, job)
+	q.Wait(ctx, &wg, c, f)
+	c <- 1
+
+	log.Println("waiting")
+	time.Sleep(pollInterval * 2)
+	log.Println("waited")
+
+	if !haveJob {
+		t.Errorf("did not process job")
 	}
 	cancel()
 }

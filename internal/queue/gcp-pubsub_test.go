@@ -28,30 +28,47 @@ func TestGCPPubSubQueue(t *testing.T) {
 		wg          sync.WaitGroup
 		c           = make(chan interface{})
 		topic       = fmt.Sprintf("%s-unit-tests-%v", defaultTopicName, time.Now().Unix())
+		have        interface{}
 	)
-	q, err := NewGCPPubSubQueue(ctx, &wg, c, projectID, topic)
+	q, err := NewGCPPubSubQueue(ctx, projectID, topic)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
 
+	f := func(job interface{}) {
+		have = job
+	}
+
+	q.Wait(ctx, &wg, c, f)
+
 	type S struct{ Job string }
 	gob.Register(&S{})
 	job := S{"unit-test-" + topic}
-	q.Queue(job)
+	c <- job
 
-	have := <-c
-	q.delete()
+	for i := 0; i < 10; i++ {
+		time.Sleep(1 * time.Second)
+		if have == nil {
+			continue
+		}
 
-	concrete, ok := have.(*S)
-	if !ok {
-		t.Fatalf("have type: %T is not %T", have, &S{})
+		concrete, ok := have.(*S)
+		if !ok {
+			t.Fatalf("have type: %T is not %T", have, &S{})
+		}
+
+		if !reflect.DeepEqual(*concrete, job) {
+			t.Errorf("have (concrete): %#v, want: %#v", *concrete, job)
+		}
 	}
 
-	if !reflect.DeepEqual(*concrete, job) {
-		t.Errorf("have (concrete): %#v, want: %#v", *concrete, job)
+	if have == nil {
+		t.Error("did not receive job from queue")
 	}
 
+	q.delete(ctx)
 	cancel()
+	wg.Wait()
 }
 
 func TestGCPPubSubQueue_timeout(t *testing.T) {
@@ -64,11 +81,9 @@ func TestGCPPubSubQueue_timeout(t *testing.T) {
 
 	var (
 		ctx   = context.Background()
-		wg    sync.WaitGroup
-		c     = make(chan interface{})
 		topic = fmt.Sprintf("%s-unit-tests-%v", defaultTopicName, time.Now().Unix())
 	)
-	_, err := NewGCPPubSubQueue(ctx, &wg, c, projectID, topic)
+	_, err := NewGCPPubSubQueue(ctx, projectID, topic)
 
 	have := errors.Cause(err)
 	if want := context.DeadlineExceeded; have != want {
