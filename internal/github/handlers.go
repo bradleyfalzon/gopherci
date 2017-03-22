@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
+	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 )
@@ -75,6 +76,7 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 	return AnalyseConfig{
 		eventType:       analyser.EventTypePush,
 		installationID:  *e.Installation.ID,
+		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/push",
 		statusesURL:     strings.Replace(*e.Repo.StatusesURL, "{sha}", *e.After, -1),
 		baseURL:         *e.Repo.CloneURL,
@@ -93,6 +95,7 @@ func PullRequestConfig(e *github.PullRequestEvent) AnalyseConfig {
 	return AnalyseConfig{
 		eventType:       analyser.EventTypePullRequest,
 		installationID:  *e.Installation.ID,
+		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/pr",
 		statusesURL:     *pr.StatusesURL,
 		baseURL:         *pr.Base.Repo.CloneURL,
@@ -112,6 +115,7 @@ func PullRequestConfig(e *github.PullRequestEvent) AnalyseConfig {
 type AnalyseConfig struct {
 	eventType       analyser.EventType
 	installationID  int
+	repositoryID    int
 	statusesContext string
 	statusesURL     string
 
@@ -131,7 +135,7 @@ type AnalyseConfig struct {
 
 // Analyse analyses a GitHub event. If cfg.pr is not 0, comments will also be
 // written on the Pull Request.
-func (g *GitHub) Analyse(cfg AnalyseConfig) error {
+func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	log.Printf("analysing config: %#v", cfg)
 
 	// For functions that support context, set a maximum execution time.
@@ -159,6 +163,32 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 		return errors.Wrapf(err, "could not set status to pending for %v", cfg.statusesURL)
 	}
 
+	// if Analyse returns an error, set status as internally failed
+	defer func() {
+		if err != nil {
+			if serr := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error"); serr != nil {
+				log.Printf("could not set status to error for %v: %s", cfg.statusesURL, serr)
+			}
+		}
+	}()
+
+	// Record start of analysis
+	analysisID, err := g.db.StartAnalysis(install.ID, cfg.repositoryID)
+	if err != nil {
+		return errors.Wrap(err, "error starting analysis")
+	}
+	log.Println("analysisID:", analysisID)
+
+	// if Analyse returns an error, fail the analysis
+	defer func() {
+		if err != nil {
+			ferr := g.db.FinishAnalysis(analysisID, db.AnalysisStatusError, nil)
+			if ferr != nil {
+				log.Printf("could not set analysis to error for analysisID %v: %s", analysisID, ferr)
+			}
+		}
+	}()
+
 	// Analyse
 	acfg := analyser.Config{
 		EventType: cfg.eventType,
@@ -169,21 +199,18 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 		GoSrcPath: cfg.goSrcPath,
 	}
 
-	issues, err := analyser.Analyse(ctx, g.analyser, tools, acfg)
+	analysis, err := analyser.Analyse(ctx, g.analyser, tools, acfg)
 	if err != nil {
-		if serr := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error"); serr != nil {
-			log.Printf("could not set status to error for %v: %s", cfg.statusesURL, serr)
-		}
 		return errors.Wrap(err, "could not run analyser")
 	}
-	log.Printf("analyser found %v issues", len(issues))
 
 	// if this is a PR add comments, suppressed is the number of comments that
 	// would have been submitted if it wasn't for an internal fixed limit. For
 	// pushes, there are no comments, so suppressed is 0.
 	var suppressed = 0
 	if cfg.pr != 0 {
-		suppressed, issues, err = install.FilterIssues(ctx, cfg.owner, cfg.repo, cfg.pr, issues)
+		var issues []db.Issue
+		suppressed, issues, err = install.FilterIssues(ctx, cfg.owner, cfg.repo, cfg.pr, analysis.Issues())
 		if err != nil {
 			return err
 		}
@@ -196,9 +223,14 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) error {
 	}
 
 	// Set the CI status API to success
-	statusDesc := statusDesc(issues, suppressed)
+	statusDesc := statusDesc(analysis.Issues(), suppressed)
 	if err := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateSuccess, statusDesc); err != nil {
 		return errors.Wrapf(err, "could not set status to success for %v", cfg.statusesURL)
+	}
+
+	err = g.db.FinishAnalysis(analysisID, db.AnalysisStatusSuccess, analysis)
+	if err != nil {
+		return errors.Wrapf(err, "could not set analysis status for analysisID %v", analysisID)
 	}
 
 	return nil
@@ -216,7 +248,7 @@ func stripScheme(url string) string {
 }
 
 // statusDesc builds a status description based on issues.
-func statusDesc(issues []analyser.Issue, suppressed int) string {
+func statusDesc(issues []db.Issue, suppressed int) string {
 	desc := fmt.Sprintf("Found %d issues", len(issues))
 	switch {
 	case len(issues) == 0:

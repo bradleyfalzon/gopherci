@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/bradleyfalzon/gopherci/internal/analyser"
+	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/google/go-github/github"
 )
 
@@ -25,9 +25,9 @@ func TestFilterIssues_maxIssueComments(t *testing.T) {
 	suppress := 1
 
 	// Add more issues than maxIssueComments
-	var issues []analyser.Issue
+	var issues []db.Issue
 	for n := 0; n < maxIssueComments+suppress; n++ {
-		issues = append(issues, analyser.Issue{File: "file.go", HunkPos: n, Issue: "body"})
+		issues = append(issues, db.Issue{Path: "file.go", HunkPos: n, Issue: "body"})
 	}
 
 	suppressed, filtered, err := i.FilterIssues(context.Background(), "owner", "repo", 2, issues)
@@ -85,10 +85,10 @@ func TestFilterIssues_deduplicate(t *testing.T) {
 	i := Installation{client: github.NewClient(nil)}
 	i.client.BaseURL, _ = url.Parse(ts.URL)
 
-	var issues = []analyser.Issue{
-		{File: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody},     // remove
-		{File: expectedCmtPath, HunkPos: expectedCmtPos + 1, Issue: expectedCmtBody}, // keep
-		{File: expectedCmtPath, HunkPos: expectedCmtPos + 2, Issue: expectedCmtBody}, // remove
+	var issues = []db.Issue{
+		{Path: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody},     // remove
+		{Path: expectedCmtPath, HunkPos: expectedCmtPos + 1, Issue: expectedCmtBody}, // keep
+		{Path: expectedCmtPath, HunkPos: expectedCmtPos + 2, Issue: expectedCmtBody}, // remove
 	}
 
 	_, filtered, err := i.FilterIssues(context.Background(), expectedOwner, expectedRepo, expectedPR, issues)
@@ -139,7 +139,7 @@ func TestWriteIssues(t *testing.T) {
 	i := Installation{client: github.NewClient(nil)}
 	i.client.BaseURL, _ = url.Parse(ts.URL)
 
-	var issues = []analyser.Issue{{File: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody}}
+	var issues = []db.Issue{{Path: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody}}
 
 	err := i.WriteIssues(context.Background(), expectedOwner, expectedRepo, expectedPR, expectedCmtSHA, issues)
 	if err != nil {

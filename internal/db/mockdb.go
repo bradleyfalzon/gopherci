@@ -60,3 +60,13 @@ func (db *MockDB) GetGHInstallation(installationID int) (*GHInstallation, error)
 func (db *MockDB) ListTools() ([]Tool, error) {
 	return db.Tools, nil
 }
+
+// StartAnalysis implements the DB interface.
+func (db *MockDB) StartAnalysis(ghInstallationID, repositoryID int) (int, error) {
+	return 0, nil
+}
+
+// FinishAnalysis implements the DB interface.
+func (db *MockDB) FinishAnalysis(analysisID int, status AnalysisStatus, analysis *Analysis) error {
+	return nil
+}

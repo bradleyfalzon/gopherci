@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/bradleyfalzon/revgrep"
@@ -43,16 +44,6 @@ type Config struct {
 	HeadRef string
 	// GoSrcPath is the repository's path when placed in $GOPATH/src.
 	GoSrcPath string
-}
-
-// Issue contains file, position and string describing a single issue.
-type Issue struct {
-	// File is the relative path name of the file.
-	File string
-	// HunkPos is the position relative to the files first hunk.
-	HunkPos int
-	// Issue is the issue.
-	Issue string
 }
 
 // Executer executes a single command in a contained environment.
@@ -92,18 +83,23 @@ const (
 )
 
 // Analyse downloads a repository set in config in an environment provided by
-// analyser, running the series of tools. Returns issues from tools that have
-// are likely to have been caused by a change.
-func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Config) ([]Issue, error) {
+// analyser, running the series of tools. Returns analysis from tools that have
+// are likely to have been caused by a change, or an error.
+func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Config) (*db.Analysis, error) {
 	// Get a new executer/environment to execute in
 	exec, err := analyser.NewExecuter(ctx, config.GoSrcPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "analyser could create new executer")
 	}
 
-	// baseRef is the reference to the base branch or before commit, the ref
-	// of the state before this PR/Push.
-	var baseRef string
+	var (
+		// baseRef is the reference to the base branch or before commit, the ref
+		// of the state before this PR/Push.
+		baseRef    string
+		start      = time.Now() // start of entire analysis
+		deltaStart = time.Now() // start of specific analysis
+		analysis   = db.NewAnalysis()
+	)
 	switch config.EventType {
 	case EventTypePullRequest:
 		// clone repo
@@ -141,6 +137,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 	default:
 		return nil, errors.Errorf("unknown event type %T", config.EventType)
 	}
+	analysis.CloneDuration = time.Since(deltaStart)
 
 	// create a unified diff for use by revgrep
 	args := []string{"git", "diff", fmt.Sprintf("%v...%v", baseRef, config.HeadRef)}
@@ -150,11 +147,13 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 	}
 
 	// install dependencies, some static analysis tools require building a project
+	deltaStart = time.Now()
 	args = []string{"install-deps.sh"}
 	out, err := exec.Execute(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 	}
+	analysis.DepsDuration = time.Since(deltaStart)
 	log.Printf("install-deps.sh output: %s", bytes.TrimSpace(out))
 
 	// get the base package working directory, used by revgrep to change absolute
@@ -167,8 +166,8 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 	}
 	pwd := string(bytes.TrimSpace(out))
 
-	var issues []Issue
 	for _, tool := range tools {
+		deltaStart = time.Now()
 		args := []string{tool.Path}
 		for _, arg := range strings.Fields(tool.Args) {
 			switch arg {
@@ -199,6 +198,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		}
 		log.Printf("revgrep found %v issues", len(revIssues))
 
+		var issues []db.Issue
 		for _, issue := range revIssues {
 			// Remove issues in generated files, isFileGenereated will return
 			// 0 for file is generated or 1 for file is not generated.
@@ -215,11 +215,17 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 				return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 			}
 
-			issues = append(issues, Issue{
-				File:    issue.File,
+			issues = append(issues, db.Issue{
+				Path:    issue.File,
+				Line:    issue.LineNo,
 				HunkPos: issue.HunkPos,
 				Issue:   fmt.Sprintf("%s: %s", tool.Name, issue.Message),
 			})
+		}
+
+		analysis.Tools[tool.ID] = db.AnalysisTool{
+			Duration: time.Since(deltaStart),
+			Issues:   issues,
 		}
 	}
 
@@ -229,5 +235,6 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 	}
 	log.Printf("finished stopping executer")
 
-	return issues, nil
+	analysis.TotalDuration = time.Since(start)
+	return analysis, nil
 }
