@@ -88,7 +88,10 @@ index 0000000..6362395
 		},
 	}
 
-	analysis, err := Analyse(context.Background(), analyser, tools, cfg)
+	mockDB := db.NewMockDB()
+	analysis, _ := mockDB.StartAnalysis(1, 2)
+
+	err := Analyse(context.Background(), analyser, tools, cfg, analysis)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
@@ -182,7 +185,10 @@ index 0000000..6362395
 		},
 	}
 
-	analysis, err := Analyse(context.Background(), analyser, tools, cfg)
+	mockDB := db.NewMockDB()
+	analysis, _ := mockDB.StartAnalysis(1, 2)
+
+	err := Analyse(context.Background(), analyser, tools, cfg, analysis)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
@@ -227,7 +233,11 @@ index 0000000..6362395
 func TestAnalyse_unknown(t *testing.T) {
 	cfg := Config{}
 	analyser := &mockAnalyser{}
-	_, err := Analyse(context.Background(), analyser, nil, cfg)
+
+	mockDB := db.NewMockDB()
+	analysis, _ := mockDB.StartAnalysis(1, 2)
+
+	err := Analyse(context.Background(), analyser, nil, cfg, analysis)
 	if err == nil {
 		t.Fatal("expected error got nil")
 	}

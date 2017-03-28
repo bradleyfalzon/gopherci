@@ -2,7 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -78,13 +77,15 @@ func (db *SQLDB) ListTools() ([]Tool, error) {
 }
 
 // StartAnalysis implements the DB interface.
-func (db *SQLDB) StartAnalysis(ghInstallationID, repositoryID int) (int, error) {
+func (db *SQLDB) StartAnalysis(ghInstallationID, repositoryID int) (*Analysis, error) {
+	analysis := NewAnalysis()
 	result, err := db.sqlx.Exec("INSERT INTO analysis (gh_installation_id, repository_id) VALUES (?, ?)", ghInstallationID, repositoryID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	analysisID, err := result.LastInsertId()
-	return int(analysisID), err
+	analysis.ID = int(analysisID)
+	return analysis, err
 }
 
 // FinishAnalysis implements the DB interface.
@@ -94,13 +95,13 @@ func (db *SQLDB) FinishAnalysis(analysisID int, status AnalysisStatus, analysis 
 		return err
 	}
 	_, err := db.sqlx.Exec("UPDATE analysis SET status = ?, clone_duration = ?, deps_duration = ?, total_duration = ? WHERE id = ?",
-		string(status), analysis.CloneDuration/time.Second, analysis.DepsDuration/time.Second, analysis.TotalDuration/time.Second, analysisID,
+		string(status), analysis.CloneDuration, analysis.DepsDuration, analysis.TotalDuration, analysisID,
 	)
 	if err != nil {
 		return err
 	}
 	for toolID, tool := range analysis.Tools {
-		toolResult, err := db.sqlx.Exec("INSERT INTO analysis_tool (analysis_id, tool_id, duration) VALUES (?, ?, ?)", analysisID, toolID, tool.Duration/time.Second)
+		toolResult, err := db.sqlx.Exec("INSERT INTO analysis_tool (analysis_id, tool_id, duration) VALUES (?, ?, ?)", analysisID, toolID, tool.Duration)
 		if err != nil {
 			return err
 		}
@@ -111,11 +112,77 @@ func (db *SQLDB) FinishAnalysis(analysisID int, status AnalysisStatus, analysis 
 		}
 
 		for _, issue := range tool.Issues {
-			db.sqlx.Exec("INSERT INTO issues (analysis_tool_id, filename, line, hunk_pos, issue) VALUES(?, ?, ?, ?, ?)",
+			_, err := db.sqlx.Exec("INSERT INTO issues (analysis_tool_id, path, line, hunk_pos, issue) VALUES(?, ?, ?, ?, ?)",
 				toolAnalysisID, issue.Path, issue.Line, issue.HunkPos, issue.Issue,
 			)
+			if err != nil {
+				return err
+			}
 		}
 
 	}
 	return nil
+}
+
+// GetAnalysis implements the DB interface.
+func (db *SQLDB) GetAnalysis(analysisID int) (*Analysis, error) {
+	analysis := NewAnalysis()
+
+	err := db.sqlx.Get(analysis, `
+SELECT id, gh_installation_id, repository_id, status, clone_duration, deps_duration, total_duration, created_at
+FROM analysis WHERE id = ?`, analysisID)
+	if err != nil {
+		return nil, err
+	}
+	if analysis == nil {
+		return nil, nil
+	}
+
+	var toolIssues []struct {
+		ToolID   int            `db:"tool_id"`
+		Name     string         `db:"name"`
+		URL      string         `db:"url"`
+		Duration Duration       `db:"duration"`
+		Path     sql.NullString `db:"path"`
+		Line     sql.NullInt64  `db:"line"`
+		HunkPos  sql.NullInt64  `db:"hunk_pos"`
+		Issue    sql.NullString `db:"issue"`
+	}
+
+	// get all the tools and issues if they have them
+	err = db.sqlx.Select(&toolIssues, `
+   SELECT at.tool_id, at.duration, i.path, i.line, i.hunk_pos, i.issue,
+		  t.name, t.url
+     FROM analysis_tool at
+	 JOIN tools t ON (at.tool_id = t.id)
+LEFT JOIN issues i ON (i.analysis_tool_id = at.id)
+    WHERE at.analysis_id = ?`,
+		analysisID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, issue := range toolIssues {
+		toolID := ToolID(issue.ToolID)
+		if _, ok := analysis.Tools[toolID]; !ok {
+			analysis.Tools[toolID] = AnalysisTool{
+				Tool:     &Tool{ID: toolID, Name: issue.Name, URL: issue.URL},
+				ToolID:   toolID,
+				Duration: issue.Duration,
+			}
+		}
+
+		if issue.Issue.Valid {
+			at := analysis.Tools[toolID]
+			at.Issues = append(at.Issues, Issue{
+				Path:    issue.Path.String,
+				Line:    int(issue.Line.Int64),
+				HunkPos: int(issue.HunkPos.Int64),
+				Issue:   issue.Issue.String,
+			})
+			analysis.Tools[toolID] = at
+		}
+	}
+	return analysis, nil
 }

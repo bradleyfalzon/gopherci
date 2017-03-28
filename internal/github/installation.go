@@ -64,14 +64,14 @@ const (
 )
 
 // SetStatus sets the CI Status API
-func (i *Installation) SetStatus(ctx context.Context, context, statusURL string, status StatusState, description string) error {
+func (i *Installation) SetStatus(ctx context.Context, context, statusURL string, status StatusState, description, targetURL string) error {
 	s := struct {
 		State       string `json:"state,omitempty"`
 		TargetURL   string `json:"target_url,omitempty"`
 		Description string `json:"description,omitempty"`
 		Context     string `json:"context,omitempty"`
 	}{
-		string(status), "", description, context,
+		string(status), targetURL, description, context,
 	}
 	log.Printf("status: %#v", status)
 

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -16,10 +17,13 @@ import (
 	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/bradleyfalzon/gopherci/internal/github"
 	"github.com/bradleyfalzon/gopherci/internal/queue"
+	"github.com/bradleyfalzon/gopherci/internal/web"
 	_ "github.com/go-sql-driver/mysql"
 	gh "github.com/google/go-github/github"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
+	"github.com/pressly/chi"
+	"github.com/pressly/chi/middleware"
 	migrate "github.com/rubenv/sql-migrate"
 )
 
@@ -27,13 +31,25 @@ func main() {
 	// Load environment from .env, ignore errors as it's optional and dev only
 	_ = godotenv.Load()
 
-	srv := &http.Server{Addr: ":3000"} // http server, for graceful shutdown
+	r := chi.NewRouter()
+	r.Use(middleware.RealIP) // Blindly accept XFF header, ensure LB overwrites it
+	r.Use(middleware.DefaultCompress)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.NoCache)
+
+	// http server for graceful shutdown
+	srv := &http.Server{
+		Addr:    ":3000",
+		Handler: r,
+	}
 
 	// Graceful shutdown handler
 	ctx, cancel := context.WithCancel(context.Background())
 	go SignalHandler(cancel, srv)
 
 	switch {
+	case os.Getenv("GCI_BASE_URL") == "":
+		log.Println("GCI_BASE_URL is blank, URLs linking back to GopherCI will not work")
 	case os.Getenv("GITHUB_ID") == "":
 		log.Fatalln("GITHUB_ID is not set")
 	case os.Getenv("GITHUB_PEM_FILE") == "":
@@ -118,12 +134,12 @@ func main() {
 	// queuePush is used to add a job to the queue
 	var queuePush = make(chan interface{})
 
-	gh, err := github.New(analyse, db, queuePush, int(integrationID), integrationKey, os.Getenv("GITHUB_WEBHOOK_SECRET"))
+	gh, err := github.New(analyse, db, queuePush, int(integrationID), integrationKey, os.Getenv("GITHUB_WEBHOOK_SECRET"), os.Getenv("GCI_BASE_URL"))
 	if err != nil {
 		log.Fatalln("could not initialise GitHub:", err)
 	}
-	http.HandleFunc("/gh/webhook", gh.WebHookHandler)
-	http.HandleFunc("/gh/callback", gh.CallBackHandler)
+	r.Post("/gh/webhook", gh.WebHookHandler)
+	r.Get("/gh/callback", gh.CallbackHandler)
 
 	var (
 		wg         sync.WaitGroup // wait for queue to finish before exiting
@@ -150,8 +166,18 @@ func main() {
 		log.Fatalf("Unknown QUEUER option %q", os.Getenv("QUEUER"))
 	}
 
+	// Web routes
+	web, err := web.NewWeb(db)
+	if err != nil {
+		log.Fatalln("main: error loading web:", err)
+	}
+	workDir, _ := os.Getwd()
+	r.FileServer("/static", http.Dir(filepath.Join(workDir, "internal", "web", "static")))
+	r.NotFound(web.NotFoundHandler)
+	r.Get("/analysis/:analysisID", web.AnalysisHandler)
+
 	// Health checks
-	http.HandleFunc("/health-check", HealthCheckHandler)
+	r.Get("/health-check", HealthCheckHandler)
 
 	// Listen
 	log.Println("main: listening on", srv.Addr)

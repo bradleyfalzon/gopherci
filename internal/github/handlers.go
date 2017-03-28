@@ -15,8 +15,30 @@ import (
 	"github.com/pkg/errors"
 )
 
-// CallBackHandler is the net/http handler for github callbacks.
-func (g *GitHub) CallBackHandler(w http.ResponseWriter, r *http.Request) {}
+// CallbackHandler is the net/http handler for github callbacks. This may
+// have only been for old integration behaviour, as it doesn't appear to
+// be documented anymore, but because our installation still has it set, it's
+// still used for us. So just redirect.
+//
+// https://web-beta.archive.org/web/20161114212139/https://developer.github.com/early-access/integrations/creating-an-integration/
+// https://web-beta.archive.org/web/20161114200029/https://developer.github.com/early-access/integrations/identifying-users/
+func (g *GitHub) CallbackHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	target := r.Form.Get("target_url")
+	if target == "" {
+		http.Error(w, "no target_url set", http.StatusBadRequest)
+		return
+	}
+	// No open redirects
+	if !strings.HasPrefix(target, g.gciBaseURL) {
+		http.Error(w, "invalid target_url", http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
 
 // WebHookHandler is the net/http handler for github webhooks.
 func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
@@ -151,14 +173,23 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		return fmt.Errorf("could not find installation with ID %v", cfg.installationID)
 	}
 
-	// Find tools for this repo
+	// Find tools for this repo. StartAnalysis could return these tools instead
+	// as part of the analysis type, which Analyser then fills out.
 	tools, err := g.db.ListTools()
 	if err != nil {
 		return errors.Wrap(err, "could not get tools")
 	}
 
+	// Record start of analysis
+	analysis, err := g.db.StartAnalysis(install.ID, cfg.repositoryID)
+	if err != nil {
+		return errors.Wrap(err, "error starting analysis")
+	}
+	log.Println("analysisID:", analysis.ID)
+	analysisURL := analysis.HTMLURL(g.gciBaseURL)
+
 	// Set the CI status API to pending
-	err = install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStatePending, "In progress")
+	err = install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStatePending, "In progress", analysisURL)
 	if err != nil {
 		return errors.Wrapf(err, "could not set status to pending for %v", cfg.statusesURL)
 	}
@@ -166,25 +197,18 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	// if Analyse returns an error, set status as internally failed
 	defer func() {
 		if err != nil {
-			if serr := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error"); serr != nil {
+			if serr := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error", analysisURL); serr != nil {
 				log.Printf("could not set status to error for %v: %s", cfg.statusesURL, serr)
 			}
 		}
 	}()
 
-	// Record start of analysis
-	analysisID, err := g.db.StartAnalysis(install.ID, cfg.repositoryID)
-	if err != nil {
-		return errors.Wrap(err, "error starting analysis")
-	}
-	log.Println("analysisID:", analysisID)
-
 	// if Analyse returns an error, fail the analysis
 	defer func() {
 		if err != nil {
-			ferr := g.db.FinishAnalysis(analysisID, db.AnalysisStatusError, nil)
+			ferr := g.db.FinishAnalysis(analysis.ID, db.AnalysisStatusError, nil)
 			if ferr != nil {
-				log.Printf("could not set analysis to error for analysisID %v: %s", analysisID, ferr)
+				log.Printf("could not set analysis to error for analysisID %v: %s", analysis.ID, ferr)
 			}
 		}
 	}()
@@ -199,7 +223,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		GoSrcPath: cfg.goSrcPath,
 	}
 
-	analysis, err := analyser.Analyse(ctx, g.analyser, tools, acfg)
+	err = analyser.Analyse(ctx, g.analyser, tools, acfg, analysis)
 	if err != nil {
 		return errors.Wrap(err, "could not run analyser")
 	}
@@ -224,13 +248,13 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 
 	// Set the CI status API to success
 	statusDesc := statusDesc(analysis.Issues(), suppressed)
-	if err := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateSuccess, statusDesc); err != nil {
+	if err := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateSuccess, statusDesc, analysisURL); err != nil {
 		return errors.Wrapf(err, "could not set status to success for %v", cfg.statusesURL)
 	}
 
-	err = g.db.FinishAnalysis(analysisID, db.AnalysisStatusSuccess, analysis)
+	err = g.db.FinishAnalysis(analysis.ID, db.AnalysisStatusSuccess, analysis)
 	if err != nil {
-		return errors.Wrapf(err, "could not set analysis status for analysisID %v", analysisID)
+		return errors.Wrapf(err, "could not set analysis status for analysisID %v", analysis.ID)
 	}
 
 	return nil
