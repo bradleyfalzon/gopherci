@@ -18,6 +18,7 @@ type GitHub struct {
 	integrationKey []byte            // integrationKey is the private key for the installationID
 	tr             http.RoundTripper // tr is a transport shared by all installations to reuse http connections
 	baseURL        string            // baseURL for GitHub API
+	gciBaseURL     string            // gciBaseURL is the base URL for GopherCI
 }
 
 // New returns a GitHub object for use with GitHub integrations
@@ -25,7 +26,7 @@ type GitHub struct {
 // integrationID is the GitHub Integration ID (not installation ID).
 // integrationKey is the key for the integrationID provided to you by GitHub
 // during the integration registration.
-func New(analyser analyser.Analyser, db db.DB, queuePush chan<- interface{}, integrationID int, integrationKey []byte, webhookSecret string) (*GitHub, error) {
+func New(analyser analyser.Analyser, db db.DB, queuePush chan<- interface{}, integrationID int, integrationKey []byte, webhookSecret, gciBaseURL string) (*GitHub, error) {
 	g := &GitHub{
 		analyser:       analyser,
 		db:             db,
@@ -35,6 +36,7 @@ func New(analyser analyser.Analyser, db db.DB, queuePush chan<- interface{}, int
 		integrationKey: integrationKey,
 		tr:             http.DefaultTransport,
 		baseURL:        "https://api.github.com",
+		gciBaseURL:     gciBaseURL,
 	}
 
 	// TODO some prechecks should be done now, instead of later, fail fast/early.

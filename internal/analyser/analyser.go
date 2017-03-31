@@ -83,13 +83,13 @@ const (
 )
 
 // Analyse downloads a repository set in config in an environment provided by
-// analyser, running the series of tools. Returns analysis from tools that have
-// are likely to have been caused by a change, or an error.
-func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Config) (*db.Analysis, error) {
+// analyser, running the series of tools. Writes results to provided analysis,
+// or an error.
+func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Config, analysis *db.Analysis) error {
 	// Get a new executer/environment to execute in
 	exec, err := analyser.NewExecuter(ctx, config.GoSrcPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "analyser could create new executer")
+		return errors.Wrap(err, "analyser could create new executer")
 	}
 
 	var (
@@ -98,7 +98,6 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		baseRef    string
 		start      = time.Now() // start of entire analysis
 		deltaStart = time.Now() // start of specific analysis
-		analysis   = db.NewAnalysis()
 	)
 	switch config.EventType {
 	case EventTypePullRequest:
@@ -106,7 +105,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		args := []string{"git", "clone", "--depth", "1", "--branch", config.HeadRef, "--single-branch", config.HeadURL, "."}
 		out, err := exec.Execute(ctx, args)
 		if err != nil {
-			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
 
 		// This is a PR, fetch base as some tools (apicompat) needs to
@@ -114,7 +113,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		args = []string{"git", "fetch", "--depth", "1", config.BaseURL, config.BaseRef}
 		out, err = exec.Execute(ctx, args)
 		if err != nil {
-			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
 		baseRef = "FETCH_HEAD"
 	case EventTypePush:
@@ -124,26 +123,26 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		args := []string{"git", "clone", config.HeadURL, "."}
 		out, err := exec.Execute(ctx, args)
 		if err != nil {
-			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
 
 		// Checkout sha
 		args = []string{"git", "checkout", config.HeadRef}
 		out, err = exec.Execute(ctx, args)
 		if err != nil {
-			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
 		baseRef = config.BaseRef
 	default:
-		return nil, errors.Errorf("unknown event type %T", config.EventType)
+		return errors.Errorf("unknown event type %T", config.EventType)
 	}
-	analysis.CloneDuration = time.Since(deltaStart)
+	analysis.CloneDuration = db.Duration(time.Since(deltaStart))
 
 	// create a unified diff for use by revgrep
 	args := []string{"git", "diff", fmt.Sprintf("%v...%v", baseRef, config.HeadRef)}
 	patch, err := exec.Execute(ctx, args)
 	if err != nil {
-		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, patch)
+		return fmt.Errorf("could not execute %v: %s\n%s", args, err, patch)
 	}
 
 	// install dependencies, some static analysis tools require building a project
@@ -151,9 +150,9 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 	args = []string{"install-deps.sh"}
 	out, err := exec.Execute(ctx, args)
 	if err != nil {
-		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+		return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 	}
-	analysis.DepsDuration = time.Since(deltaStart)
+	analysis.DepsDuration = db.Duration(time.Since(deltaStart))
 	log.Printf("install-deps.sh output: %s", bytes.TrimSpace(out))
 
 	// get the base package working directory, used by revgrep to change absolute
@@ -162,7 +161,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 	args = []string{"pwd"}
 	out, err = exec.Execute(ctx, args)
 	if err != nil {
-		return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+		return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 	}
 	pwd := string(bytes.TrimSpace(out))
 
@@ -182,7 +181,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		case nil, *NonZeroError:
 			// Ignore non-zero exit codes from tools, these are often normal.
 		default:
-			return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
 		log.Printf("%v output:\n%s", tool.Name, out)
 
@@ -194,7 +193,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 
 		revIssues, err := checker.Check(bytes.NewReader(out), ioutil.Discard)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		log.Printf("revgrep found %v issues", len(revIssues))
 
@@ -212,7 +211,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 				if etype, ok := err.(*NonZeroError); ok && etype.ExitCode == 1 {
 					break // file is not generated, record the issue
 				}
-				return nil, fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
+				return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 			}
 
 			issues = append(issues, db.Issue{
@@ -224,7 +223,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		}
 
 		analysis.Tools[tool.ID] = db.AnalysisTool{
-			Duration: time.Since(deltaStart),
+			Duration: db.Duration(time.Since(deltaStart)),
 			Issues:   issues,
 		}
 	}
@@ -235,6 +234,6 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 	}
 	log.Printf("finished stopping executer")
 
-	analysis.TotalDuration = time.Since(start)
-	return analysis, nil
+	analysis.TotalDuration = db.Duration(time.Since(start))
+	return nil
 }

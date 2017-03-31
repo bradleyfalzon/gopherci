@@ -88,11 +88,35 @@ func setup(t *testing.T) (*GitHub, *mockAnalyser, *db.MockDB) {
 	queue.Wait(context.Background(), &wg, c, func(job interface{}) {})
 
 	// New GitHub
-	g, err := New(mockAnalyser, memDB, c, 1, integrationKey, webhookSecret)
+	g, err := New(mockAnalyser, memDB, c, 1, integrationKey, webhookSecret, "https://example.com")
 	if err != nil {
 		t.Fatal("could not initialise GitHub:", err)
 	}
 	return g, mockAnalyser, memDB
+}
+
+func TestCallbackHandler(t *testing.T) {
+	tests := []struct {
+		url      string
+		wantCode int
+	}{
+		{"https://example.com/callback?target_url=https%3A%2F%2Fexample.com%2Fresults", http.StatusSeeOther}, // success
+		{"https://example.com/callback", http.StatusBadRequest},                                              // no target_url
+		{"https://example.com/callback?target_url=https%3A%2F%2Fevil.com", http.StatusBadRequest},            // open redirect
+		{"https://example.com/callback?target_url=%", http.StatusBadRequest},                                 // cannot parse form
+	}
+	for _, test := range tests {
+		r := httptest.NewRequest("GET", test.url, nil)
+		w := httptest.NewRecorder()
+
+		g, _, _ := setup(t)
+		g.CallbackHandler(w, r)
+
+		if w.Code != test.wantCode {
+			t.Errorf("code have: %v, want: %v", w.Code, test.wantCode)
+			t.Log(w.Body.String())
+		}
+	}
 }
 
 func TestWebhookHandler(t *testing.T) {

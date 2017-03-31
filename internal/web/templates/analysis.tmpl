@@ -1,0 +1,68 @@
+{{ template "header" . }}
+
+<div class="container">
+    <h1>Analysis</h1>
+
+
+    {{ with .Analysis }}
+        <table class="table">
+            <tbody>
+                <tr>
+                    <th>Started</th><td>{{ .CreatedAt }}</td>
+                </tr>
+                <tr>
+                    <th>Status</th>
+                    <td>
+                        {{ if eq .Status "Success" }}
+                            <span class="badge badge-success">{{ .Status }}</span>
+                            <button type="button" class="btn btn-outline-danger btn-sm">Mark as Failure</button>
+                        {{ else if eq .Status "Failure" }}
+                            <span class="badge badge-danger">{{ .Status }}</span>
+                            <button type="button" class="btn btn-outline-success btn-sm">Mark as Success</button>
+                        {{ else if eq .Status "Error" }}
+                            <span class="badge badge-warning">{{ .Status }}</span>
+                            <button type="button" class="btn btn-outline-success btn-sm">Mark as Success</button>
+                        {{ else }}
+                            <span class="badge badge-default">{{ .Status }}</span>
+                        {{ end }}
+
+                        <button type="button" class="btn btn-secondary btn-sm">Rerun Analysis</button>
+                    </td>
+                </tr>
+                {{ if ne .Status "Pending" }}
+                    <tr>
+                        <th>Clone Duration</th><td>{{ .CloneDuration }}</td>
+                    </tr>
+                    <tr>
+                        <th>Deps Duration</th><td>{{ .DepsDuration }}</td>
+                    </tr>
+                    <tr>
+                        <th>Total Duration</th><td>{{ .TotalDuration }}</td>
+                    </tr>
+                {{ end }}
+            </tbody>
+        </table>
+
+
+
+        <div class="section">
+            {{ range .Tools }}
+                <h3><a href="{{.Tool.URL}}">{{ .Tool.Name }}</a></h3>
+                <p>Found {{ len .Issues }} issues in {{ .Duration }}.</p>
+                {{ if .Issues }}
+                    <table class="table">
+                        <tbody>
+                            {{ range .Issues }}
+                                <tr><td>{{ .Path }}:{{ .Line }} {{ .Issue }}</td></tr>
+                            {{ end }}
+                        </tbody>
+                    </table>
+                {{ end }}
+            {{ end }}
+        </div>
+    {{ end }}
+</div>
+<hr>
+
+</div>
+{{ template "footer" . }}
