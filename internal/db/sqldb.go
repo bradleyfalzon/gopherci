@@ -101,7 +101,7 @@ func (db *SQLDB) FinishAnalysis(analysisID int, status AnalysisStatus, analysis 
 		return err
 	}
 	for toolID, tool := range analysis.Tools {
-		toolResult, err := db.sqlx.Exec("INSERT INTO analysis_tool (analysis_id, tool_id, SEC_TO_TIME(duration)) VALUES (?, ?, ?)", analysisID, toolID, tool.Duration)
+		toolResult, err := db.sqlx.Exec("INSERT INTO analysis_tool (analysis_id, tool_id, duration) VALUES (?, ?, SEC_TO_TIME(?))", analysisID, toolID, tool.Duration)
 		if err != nil {
 			return err
 		}
