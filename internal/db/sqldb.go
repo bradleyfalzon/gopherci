@@ -94,14 +94,14 @@ func (db *SQLDB) FinishAnalysis(analysisID int, status AnalysisStatus, analysis 
 		_, err := db.sqlx.Exec("UPDATE analysis SET status = ? WHERE id = ?", string(status), analysisID)
 		return err
 	}
-	_, err := db.sqlx.Exec("UPDATE analysis SET status = ?, clone_duration = ?, deps_duration = ?, total_duration = ? WHERE id = ?",
+	_, err := db.sqlx.Exec("UPDATE analysis SET status = ?, clone_duration = SEC_TO_TIME(?), deps_duration = SEC_TO_TIME(?), total_duration = SEC_TO_TIME(?) WHERE id = ?",
 		string(status), analysis.CloneDuration, analysis.DepsDuration, analysis.TotalDuration, analysisID,
 	)
 	if err != nil {
 		return err
 	}
 	for toolID, tool := range analysis.Tools {
-		toolResult, err := db.sqlx.Exec("INSERT INTO analysis_tool (analysis_id, tool_id, duration) VALUES (?, ?, ?)", analysisID, toolID, tool.Duration)
+		toolResult, err := db.sqlx.Exec("INSERT INTO analysis_tool (analysis_id, tool_id, SEC_TO_TIME(duration)) VALUES (?, ?, ?)", analysisID, toolID, tool.Duration)
 		if err != nil {
 			return err
 		}
