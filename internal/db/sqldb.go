@@ -184,5 +184,6 @@ LEFT JOIN issues i ON (i.analysis_tool_id = at.id)
 			analysis.Tools[toolID] = at
 		}
 	}
+
 	return analysis, nil
 }
