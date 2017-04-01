@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -146,4 +147,37 @@ func (i *Installation) WriteIssues(ctx context.Context, owner, repo string, prNu
 		}
 	}
 	return nil
+}
+
+// Diff implements the web.VCSReader interface.
+func (i *Installation) Diff(ctx context.Context, repositoryID int, commitFrom, commitTo string, requestNumber int) (io.ReadCloser, error) {
+	var apiURL string
+	if requestNumber == 0 {
+		apiURL = fmt.Sprintf("%s/repositories/%d/compare/%s...%s", i.client.BaseURL.String(), repositoryID, commitFrom, commitTo)
+	} else {
+		apiURL = fmt.Sprintf("%s/repositories/%d/pulls/%d", i.client.BaseURL.String(), repositoryID, requestNumber)
+	}
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var js struct {
+		DiffURL string `json:"diff_url"`
+	}
+	_, err = i.client.Do(ctx, req, &js)
+	if err != nil {
+		return nil, err
+	}
+
+	if js.DiffURL == "" {
+		return nil, errors.New("no diff url in api response")
+	}
+
+	resp, err := http.Get(js.DiffURL)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
 }

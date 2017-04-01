@@ -100,6 +100,16 @@ func (db *SQLDB) FinishAnalysis(analysisID int, status AnalysisStatus, analysis 
 	if err != nil {
 		return err
 	}
+
+	if analysis.IsPush() {
+		_, err = db.sqlx.Exec("UPDATE analysis SET commit_from = ?, commit_to = ? WHERE id = ?", analysis.CommitFrom, analysis.CommitTo, analysisID)
+	} else {
+		_, err = db.sqlx.Exec("UPDATE analysis SET request_number = ? WHERE id = ?", analysis.RequestNumber, analysisID)
+	}
+	if err != nil {
+		return err
+	}
+
 	for toolID, tool := range analysis.Tools {
 		toolResult, err := db.sqlx.Exec("INSERT INTO analysis_tool (analysis_id, tool_id, duration) VALUES (?, ?, SEC_TO_TIME(?))", analysisID, toolID, tool.Duration)
 		if err != nil {
@@ -129,13 +139,17 @@ func (db *SQLDB) GetAnalysis(analysisID int) (*Analysis, error) {
 	analysis := NewAnalysis()
 
 	err := db.sqlx.Get(analysis, `
-SELECT id, gh_installation_id, repository_id, status, clone_duration, deps_duration, total_duration, created_at
-FROM analysis WHERE id = ?`, analysisID)
-	if err != nil {
-		return nil, err
-	}
-	if analysis == nil {
+   SELECT a.id, a.repository_id, IFNULL(a.commit_from, "") commit_from, IFNULL(a.commit_to, "") commit_to,
+          IFNULL(a.request_number, "") request_number, a.status, a.clone_duration, a.deps_duration,
+          a.total_duration, a.created_at, IFNULL(ghi.installation_id, "") installation_id
+     FROM analysis a
+LEFT JOIN gh_installations ghi ON (a.gh_installation_id = ghi.id)
+    WHERE a.id = ?`, analysisID)
+	switch {
+	case err == sql.ErrNoRows:
 		return nil, nil
+	case err != nil:
+		return nil, err
 	}
 
 	var toolIssues []struct {

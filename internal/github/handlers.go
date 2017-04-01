@@ -101,6 +101,8 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/push",
 		statusesURL:     strings.Replace(*e.Repo.StatusesURL, "{sha}", *e.After, -1),
+		commitFrom:      *e.Before,
+		commitTo:        *e.After,
 		baseURL:         *e.Repo.CloneURL,
 		// baseRef is after~numCommits to better handle forced pushes, as a
 		// forced push has the before ref of a commit that's been overwritten.
@@ -141,6 +143,13 @@ type AnalyseConfig struct {
 	statusesContext string
 	statusesURL     string
 
+	// if push (EventTypePush)
+	commitFrom string
+	commitTo   string
+
+	// if pull request (EventTypePullRequest)
+	pr int
+
 	// for analyser.
 	baseURL   string // base for pr, before for push.
 	baseRef   string // ref can be branch for pr or sha~numCommits for push.
@@ -151,7 +160,6 @@ type AnalyseConfig struct {
 	// for issue comments.
 	owner string // required if eventType is EventTypePullRequest.
 	repo  string // required if eventType is EventTypePullRequest.
-	pr    int    // required if eventType is EventTypePullRequest.
 	sha   string // required if eventType is EventTypePullRequest.
 }
 
@@ -187,6 +195,10 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	}
 	log.Println("analysisID:", analysis.ID)
 	analysisURL := analysis.HTMLURL(g.gciBaseURL)
+
+	analysis.CommitFrom = cfg.commitFrom
+	analysis.CommitTo = cfg.commitTo
+	analysis.RequestNumber = cfg.pr
 
 	// Set the CI status API to pending
 	err = install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStatePending, "In progress", analysisURL)
