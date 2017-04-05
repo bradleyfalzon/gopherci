@@ -134,6 +134,13 @@ func (db *SQLDB) FinishAnalysis(analysisID int, status AnalysisStatus, analysis 
 	return nil
 }
 
+// Foo is an example of staticcheck's incredibly useful SA4006
+func (db *SQLDB) Foo() error {
+	_, err := db.sqlx.Exec("SELECT 1")
+	_, err = db.sqlx.Exec("SELECT 1")
+	return err
+}
+
 // GetAnalysis implements the DB interface.
 func (db *SQLDB) GetAnalysis(analysisID int) (*Analysis, error) {
 	analysis := NewAnalysis()
