@@ -8,17 +8,19 @@ import (
 	"strconv"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/bradleyfalzon/gopherci/internal/github"
 	"github.com/pressly/chi"
 )
 
 // Web handles general web/html responses (not API hooks).
 type Web struct {
 	db        db.DB
+	gh        *github.GitHub
 	templates *template.Template
 }
 
 // NewWeb returns a new Web instance, or an error.
-func NewWeb(db db.DB) (*Web, error) {
+func NewWeb(db db.DB, gh *github.GitHub) (*Web, error) {
 	// Initialise html templates
 	templates, err := template.ParseGlob("internal/web/templates/*.tmpl")
 	if err != nil {
@@ -27,6 +29,7 @@ func NewWeb(db db.DB) (*Web, error) {
 
 	web := &Web{
 		db:        db,
+		gh:        gh,
 		templates: templates,
 	}
 	return web, nil
@@ -77,12 +80,42 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	vcs, err := NewVCS(web.gh, analysis)
+	if err != nil {
+		log.Printf("error getting VCS for analysisID %v: %v", analysisID, err)
+		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get VCS")
+		return
+	}
+
+	// TODO there may be a scenario where a diff isn't return (after a forced
+	// push?), if so, we should just give the template the issues to render.
+	// If no errors, give template nil issues.
+
+	diffReader, err := vcs.Diff(r.Context(), analysis.RepositoryID, analysis.CommitFrom, analysis.CommitTo, analysis.RequestNumber)
+	if err != nil {
+		log.Printf("error getting diff from VCS for analysisID %v: %v", analysisID, err)
+		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get VCS")
+		return
+	}
+	defer diffReader.Close()
+
+	patches, err := DiffIssues(r.Context(), diffReader, analysis.Issues())
+	if err != nil {
+		log.Printf("error reading vcs with analysisID %v: %v", analysisID, err)
+		web.errorHandler(w, r, http.StatusInternalServerError, "Could not read VCS")
+		return
+	}
+
 	var page = struct {
-		Title    string
-		Analysis *db.Analysis
+		Title       string
+		Analysis    *db.Analysis
+		Patches     []Patch
+		TotalIssues int
 	}{
-		Title:    "Analysis",
-		Analysis: analysis,
+		Title:       "Analysis",
+		Analysis:    analysis,
+		Patches:     patches,
+		TotalIssues: len(analysis.Issues()),
 	}
 
 	if err := web.templates.ExecuteTemplate(w, "analysis.tmpl", page); err != nil {

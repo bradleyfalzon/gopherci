@@ -118,11 +118,14 @@ func (d Duration) String() string {
 
 // Analysis represents a single analysis of a repository at a point in time.
 type Analysis struct {
-	ID               int            `db:"id"`
-	GHInstallationID int            `db:"gh_installation_id"`
-	RepositoryID     int            `db:"repository_id"`
-	Status           AnalysisStatus `db:"status"`
-	CreatedAt        time.Time      `db:"created_at"`
+	ID             int            `db:"id"`
+	InstallationID int            `db:"installation_id"`
+	RepositoryID   int            `db:"repository_id"`
+	CommitFrom     string         `db:"commit_from"`
+	CommitTo       string         `db:"commit_to"`
+	RequestNumber  int            `db:"request_number"`
+	Status         AnalysisStatus `db:"status"`
+	CreatedAt      time.Time      `db:"created_at"`
 
 	// When an analysis is finished
 	CloneDuration Duration `db:"clone_duration"` // CloneDuration is the wall clock time taken to run clone.
@@ -150,6 +153,12 @@ func (a *Analysis) Issues() []Issue {
 // HTMLURL returns the URL to view the analysis.
 func (a *Analysis) HTMLURL(prefix string) string {
 	return fmt.Sprintf("%s/analysis/%d", prefix, a.ID)
+}
+
+// IsPush returns true if the analysis was triggered by a push, or false if it
+// was triggered by pull/merge request.
+func (a *Analysis) IsPush() bool {
+	return a.RequestNumber == 0
 }
 
 // AnalysisTool contains the timing and result of an individual tool's analysis.

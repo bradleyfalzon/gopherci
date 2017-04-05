@@ -167,7 +167,7 @@ func main() {
 	}
 
 	// Web routes
-	web, err := web.NewWeb(db)
+	web, err := web.NewWeb(db, gh)
 	if err != nil {
 		log.Fatalln("main: error loading web:", err)
 	}

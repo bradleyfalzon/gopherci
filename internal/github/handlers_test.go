@@ -209,6 +209,8 @@ func TestPushConfig(t *testing.T) {
 		repositoryID:    2,
 		statusesContext: "ci/gopherci/push",
 		statusesURL:     "https://github.com/owner/repo/status/abcdef",
+		commitFrom:      "aaaaaa",
+		commitTo:        "abcdef",
 		baseURL:         "https://github.com/owner/repo.git",
 		baseRef:         "abcdef~2",
 		headURL:         "https://github.com/owner/repo.git",
@@ -225,6 +227,7 @@ func TestPushConfig(t *testing.T) {
 			CloneURL:    github.String("https://github.com/owner/repo.git"),
 			HTMLURL:     github.String("https://github.com/owner/repo"),
 		},
+		Before:  github.String("aaaaaa"),
 		After:   github.String("abcdef"),
 		Commits: []github.PushEventCommit{{}, {}},
 	}
@@ -233,7 +236,6 @@ func TestPushConfig(t *testing.T) {
 	if have != want {
 		t.Errorf("have:\n%+v\nwant:\n%+v", have, want)
 	}
-
 }
 
 func TestPullRequestConfig(t *testing.T) {

@@ -1,6 +1,8 @@
 package db
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -71,5 +73,52 @@ func TestDuration_string(t *testing.T) {
 	have := Duration(100).String()
 	if have != want {
 		t.Errorf("have: %v, want: %v", have, want)
+	}
+}
+
+func TestAnalysis_issues(t *testing.T) {
+	analysis := NewAnalysis()
+	analysis.Tools[1] = AnalysisTool{
+		Issues: []Issue{{Issue: "issue"}},
+	}
+	analysis.Tools[2] = AnalysisTool{
+		Issues: []Issue{{Issue: "issue"}},
+	}
+
+	want := []Issue{{Issue: "issue"}, {Issue: "issue"}}
+	if have := analysis.Issues(); !reflect.DeepEqual(have, want) {
+		t.Errorf("\nhave: %#v\nwant: %#v", have, want)
+	}
+}
+
+func TestAnalysis_htmlurl(t *testing.T) {
+	analysis := NewAnalysis()
+	analysis.ID = 10
+	want := fmt.Sprintf("https://example.com/analysis/%d", analysis.ID)
+	if have := analysis.HTMLURL("https://example.com"); have != want {
+		t.Errorf("have: %q, want: %q", have, want)
+	}
+}
+
+func TestAnalysis_isPush(t *testing.T) {
+	tests := []struct {
+		RequestNumber int
+		CommitFrom    string
+		CommitTo      string
+		IsPush        bool
+	}{
+		{10, "", "", false},
+		{0, "aaa", "bbb", true},
+	}
+
+	for _, test := range tests {
+		analysis := NewAnalysis()
+		analysis.RequestNumber = test.RequestNumber
+		analysis.CommitFrom = test.CommitFrom
+		analysis.CommitTo = test.CommitTo
+
+		if have := analysis.IsPush(); have != test.IsPush {
+			t.Errorf("have: %v, want: %v test: %#v", have, test.IsPush, test)
+		}
 	}
 }
