@@ -140,8 +140,8 @@ func (db *SQLDB) GetAnalysis(analysisID int) (*Analysis, error) {
 
 	err := db.sqlx.Get(analysis, `
    SELECT a.id, a.repository_id, IFNULL(a.commit_from, "") commit_from, IFNULL(a.commit_to, "") commit_to,
-          IFNULL(a.request_number, "") request_number, a.status, a.clone_duration, a.deps_duration,
-          a.total_duration, a.created_at, IFNULL(ghi.installation_id, "") installation_id
+          IFNULL(a.request_number, 0) request_number, a.status, a.clone_duration, a.deps_duration,
+          a.total_duration, a.created_at, IFNULL(ghi.installation_id, 0) installation_id
      FROM analysis a
 LEFT JOIN gh_installations ghi ON (a.gh_installation_id = ghi.id)
     WHERE a.id = ?`, analysisID)
