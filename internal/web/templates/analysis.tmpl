@@ -56,12 +56,11 @@
 	</div>
 
     <h2>Issues</h2>
-	{{ if not .Files }}
+	{{ if not .Patches }}
 		<p class="alert alert-success" role="alert">No issues found!</p>
 	{{ end }}
 
-
-    {{ range .Files }}
+    {{ range .Patches }}
 	<table class="patch">
         <thead>
             <tr><th></th><th>{{ .Path }}</th></tr>
