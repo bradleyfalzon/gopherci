@@ -172,7 +172,7 @@ func (i *Installation) Diff(ctx context.Context, repositoryID int, commitFrom, c
 	}
 
 	if js.DiffURL == "" {
-		return nil, errors.New("no diff url in api response")
+		return nil, fmt.Errorf("no diff url in api: %v", apiURL)
 	}
 
 	resp, err := http.Get(js.DiffURL)

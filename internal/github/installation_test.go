@@ -158,7 +158,10 @@ func TestInstallation_diff(t *testing.T) {
 		case "/repositories/11/pulls/10":
 			// API response for pull requests
 			w.Write(api)
-		case "/repositories/11/compare/aaacf...zzzct":
+		case "/repositories/11/compare/zzzct":
+			// API response for first pushes
+			w.Write(api)
+		case "/repositories/11/compare/zzzct~3...zzzct":
 			// API response for pushes
 			w.Write(api)
 		case "/diff.diff":
@@ -178,7 +181,7 @@ func TestInstallation_diff(t *testing.T) {
 		commitTo   string
 		requestNum int
 	}{
-		{"aaacf", "zzzct", 0},
+		{"zzzct~3", "zzzct", 0},
 		{"", "", 10},
 	}
 

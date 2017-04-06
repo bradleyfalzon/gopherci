@@ -209,7 +209,7 @@ func TestPushConfig(t *testing.T) {
 		repositoryID:    2,
 		statusesContext: "ci/gopherci/push",
 		statusesURL:     "https://github.com/owner/repo/status/abcdef",
-		commitFrom:      "aaaaaa",
+		commitFrom:      "abcdef~2",
 		commitTo:        "abcdef",
 		baseURL:         "https://github.com/owner/repo.git",
 		baseRef:         "abcdef~2",
@@ -227,7 +227,6 @@ func TestPushConfig(t *testing.T) {
 			CloneURL:    github.String("https://github.com/owner/repo.git"),
 			HTMLURL:     github.String("https://github.com/owner/repo"),
 		},
-		Before:  github.String("aaaaaa"),
 		After:   github.String("abcdef"),
 		Commits: []github.PushEventCommit{{}, {}},
 	}

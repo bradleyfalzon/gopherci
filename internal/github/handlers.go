@@ -101,9 +101,12 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/push",
 		statusesURL:     strings.Replace(*e.Repo.StatusesURL, "{sha}", *e.After, -1),
-		commitFrom:      *e.Before,
-		commitTo:        *e.After,
-		baseURL:         *e.Repo.CloneURL,
+		// commitFrom is after~numCommits for the same reason as baseRef but
+		// also because first pushes's before is 000000.... which can't be
+		// used in api request
+		commitFrom: fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
+		commitTo:   *e.After,
+		baseURL:    *e.Repo.CloneURL,
 		// baseRef is after~numCommits to better handle forced pushes, as a
 		// forced push has the before ref of a commit that's been overwritten.
 		baseRef:   fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
