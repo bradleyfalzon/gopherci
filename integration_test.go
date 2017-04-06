@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -98,7 +99,7 @@ func (it *IntegrationTest) startGopherCI() context.CancelFunc {
 		it.t.Logf("Gopherci error: %v", err)
 	}()
 	time.Sleep(10 * time.Second) // Wait for gopherci to listen on interface.
-	it.t.Log("Started gopherci")
+	it.t.Log("Started gopherci (this is not rebuilt, ensure you rebuild/install before running to test the latest changes)")
 	return cancel
 }
 
@@ -128,10 +129,11 @@ func (it *IntegrationTest) Exec(script string, args ...string) {
 	it.t.Logf("executed %v", cmd.Args)
 }
 
-// WaitForSuccess waits for the ref's Status API to be success, will only wait
-// for a short timeout, unless the status is failure or error, in which case
-// the test is marked as failed.
-func (it *IntegrationTest) WaitForSuccess(ref string) {
+// WaitForSuccess waits for the statusContext's ref Status API to be success,
+// will only wait for a short timeout, unless the status is failure or error,
+// in which case the test is marked as failed. Returns the repo status (test
+// aborts on failure).
+func (it *IntegrationTest) WaitForSuccess(ref, statusContext string) *github.RepoStatus {
 	timeout := 60 * time.Second
 	start := time.Now()
 	for time.Now().Before(start.Add(timeout)) {
@@ -141,14 +143,14 @@ func (it *IntegrationTest) WaitForSuccess(ref string) {
 		}
 
 		for _, status := range statuses.Statuses {
-			if *status.Context != "ci/gopherci/pr" {
+			if *status.Context != statusContext {
 				continue
 			}
 			it.t.Logf("Checking status: %v", *status.State)
 
 			switch *status.State {
 			case "success":
-				return
+				return &status
 			case "failure", "error":
 				it.t.Fatalf("status %v for ref %v", ref)
 			}
@@ -156,6 +158,7 @@ func (it *IntegrationTest) WaitForSuccess(ref string) {
 		time.Sleep(time.Second)
 	}
 	it.t.Fatalf("timeout waiting for status api to be success, failure or error")
+	return nil
 }
 
 func TestGitHubComments(t *testing.T) {
@@ -179,7 +182,7 @@ func TestGitHubComments(t *testing.T) {
 		t.Fatalf("could not create pull request: %v", err)
 	}
 
-	it.WaitForSuccess(branch)
+	it.WaitForSuccess(branch, "ci/gopherci/pr")
 
 	time.Sleep(5 * time.Second) // wait for comments to appear
 
@@ -204,7 +207,7 @@ func TestGitHubComments(t *testing.T) {
 
 	it.Exec("dupe-issue-comments.sh")
 
-	it.WaitForSuccess(branch)
+	it.WaitForSuccess(branch, "ci/gopherci/pr")
 
 	time.Sleep(5 * time.Second) // wait for comments to appear
 
@@ -243,7 +246,7 @@ func TestGitHubComments_ignoreGenerated(t *testing.T) {
 		t.Fatalf("could not create pull request: %v", err)
 	}
 
-	it.WaitForSuccess(branch)
+	it.WaitForSuccess(branch, "ci/gopherci/pr")
 
 	time.Sleep(5 * time.Second) // wait for comments to appear
 
@@ -256,4 +259,71 @@ func TestGitHubComments_ignoreGenerated(t *testing.T) {
 	if want := 0; len(comments) != want {
 		t.Fatalf("have %v comments want %v", len(comments), want)
 	}
+}
+
+// TestAnalysisView tests the HTML generated when viewing an analysis.
+func TestAnalysisView(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	it := NewIntegrationTest(ctx, t)
+	defer it.Close()
+
+	branch := "analysis-view"
+	preexisting, _, err := it.github.Git.GetRef(ctx, it.owner, it.repo, "heads/"+branch)
+	if err != nil && err.(*github.ErrorResponse).Response.StatusCode != http.StatusNotFound {
+		t.Fatalf("could not get branch %v: %v", branch, err)
+	}
+	if preexisting != nil {
+		_, err = it.github.Git.DeleteRef(ctx, it.owner, it.repo, "heads/"+branch)
+		if err != nil {
+			t.Fatalf("could not delete branch %v: %v", branch, err)
+		}
+	}
+
+	want200OK := func(t *testing.T, targetURL string) {
+		resp, err := http.Get(targetURL)
+		if err != nil {
+			t.Logf("test")
+			t.Fatalf("unexpected error checking status target url: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status target url %v code: %v, want: %v", targetURL, resp.StatusCode, http.StatusOK)
+		}
+	}
+
+	tests := []struct {
+		arg string
+	}{
+		// An initial push
+		{"step-1"},
+		// Force push commit
+		{"step-2"},
+		// Push another commit as normal
+		{"step-3"},
+	}
+
+	for _, test := range tests {
+		it.Exec("analysis-view.sh", branch, test.arg)
+
+		status := it.WaitForSuccess(branch, "ci/gopherci/push")
+		want200OK(t, *status.TargetURL)
+	}
+
+	// Make a PR and check again
+
+	_, _, err = it.github.PullRequests.Create(ctx, it.owner, it.repo, &github.NewPullRequest{
+		Title: github.String("pr title - analysis view"),
+		Head:  github.String(branch),
+		Base:  github.String("master"),
+	})
+	if err != nil {
+		t.Fatalf("could not create pull request: %v", err)
+	}
+
+	status := it.WaitForSuccess(branch, "ci/gopherci/pr")
+
+	want200OK(t, *status.TargetURL)
 }
