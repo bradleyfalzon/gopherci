@@ -1,60 +1,75 @@
 {{ template "header" . }}
 
-<div class="container">
-    <h1>Analysis <small class="text-muted">for {{ if gt .Analysis.RequestNumber 0 }}#{{ .Analysis.RequestNumber }}{{ else }}{{ .Analysis.CommitTo}}{{ end }}</small></h1>
+<div class="asummary-cont">
+    <div class="container">
+        <h1>Analysis <small class="text-muted">for {{ if gt .Analysis.RequestNumber 0 }}#{{ .Analysis.RequestNumber }}{{ else }}{{ .Analysis.CommitTo}}{{ end }}</small></h1>
 
-	<div class="asummary {{ .Analysis.Status }}">
-		<table class="table">
-			<tbody>
-				<tr>
-					<th>Started</th><td>{{ .Analysis.CreatedAt }}</td>
-				</tr>
-				<tr>
-					<th>Build Status</th>
-					<td>
-						{{ if eq .Analysis.Status "Success" }}
-							<span class="badge badge-success">{{ .Analysis.Status }}</span>
-							<!-- <button type="button" class="btn btn-outline-danger btn-sm">Mark as Failure</button>-->
-						{{ else if eq .Analysis.Status "Failure" }}
-							<span class="badge badge-danger">{{ .Analysis.Status }}</span>
-							<!--<button type="button" class="btn btn-outline-success btn-sm">Mark as Success</button>-->
-						{{ else if eq .Analysis.Status "Error" }}
-							<span class="badge badge-warning">{{ .Analysis.Status }}</span>
-							<!--<button type="button" class="btn btn-outline-success btn-sm">Mark as Success</button>-->
-						{{ else }}
-							<!--<span class="badge badge-default">{{ .Analysis.Status }}</span>-->
-						{{ end }}
+        <div class="asummary {{ .Analysis.Status }}">
+            <table class="table">
+                <tbody>
+                    <tr>
+                        <th>Started</th><td>{{ .Analysis.CreatedAt }}</td>
+                    </tr>
+                    <tr>
+                        <th>Build Status</th>
+                        <td>
+                            {{ if eq .Analysis.Status "Success" }}
+                                <span class="badge badge-success">{{ .Analysis.Status }}</span>
+                                <!-- <button type="button" class="btn btn-outline-danger btn-sm">Mark as Failure</button>-->
+                            {{ else if eq .Analysis.Status "Failure" }}
+                                <span class="badge badge-danger">{{ .Analysis.Status }}</span>
+                                <!--<button type="button" class="btn btn-outline-success btn-sm">Mark as Success</button>-->
+                            {{ else if eq .Analysis.Status "Error" }}
+                                <span class="badge badge-warning">{{ .Analysis.Status }}</span>
+                                <!--<button type="button" class="btn btn-outline-success btn-sm">Mark as Success</button>-->
+                            {{ else }}
+                                <!--<span class="badge badge-default">{{ .Analysis.Status }}</span>-->
+                            {{ end }}
 
-						<small>with <b>{{ .TotalIssues }}</b> issue{{ if ne .TotalIssues 1 }}s{{ end }} found.</small>
+                            <small>with <b>{{ .TotalIssues }}</b> issue{{ if ne .TotalIssues 1 }}s{{ end }} found.</small>
 
-						<!--<button type="button" class="btn btn-secondary btn-sm">Rerun Analysis</button>-->
-					</td>
-				</tr>
-			</tbody>
-		</table>
+                            <!--<button type="button" class="btn btn-secondary btn-sm">Rerun Analysis</button>-->
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
 
-		{{ with .Analysis }}
-			{{ if ne .Status "Pending" }}
-				<div class="container durations">
-					<div class="row">
-						<div class="col-sm duration-cont">
-							<h3 class="duration-header">Clone Duration</h3>
-							<p class="duration">{{ .CloneDuration }}</p>
-						</div>
-						<div class="col-sm duration-cont">
-							<h3 class="duration-header">Deps Duration</h3>
-							<p class="duration">{{ .DepsDuration }}</p>
-						</div>
-						<div class="col-sm duration-cont">
-							<h3 class="duration-header">Total Duration</h3>
-							<p class="duration">{{ .TotalDuration }}</p>
-						</div>
-					</div>
-				</div>
-			{{ end }}
-		{{ end }}
+            {{ with .Analysis }}
+                {{ if ne .Status "Pending" }}
+                    <div class="container durations">
+                        <div class="row">
+                            <div class="col-sm duration-cont">
+                                <h4 class="duration-header">Clone Duration</h4>
+                                <p class="duration">{{ .CloneDuration }}</p>
+                            </div>
+                            <div class="col-sm duration-cont">
+                                <h4 class="duration-header">Deps Duration</h4>
+                                <p class="duration">{{ .DepsDuration }}</p>
+                            </div>
+                            <div class="col-sm duration-cont">
+                                <h4 class="duration-header">Total Duration</h4>
+                                <p class="duration">{{ .TotalDuration }}</p>
+                            </div>
+                        </div>
+                    </div>
+                {{ end }}
+            {{ end }}
+        </div>
+
+        <table class="table tools">
+            <tbody>
+                {{ range .Analysis.Tools }}
+                    <tr class="tool tool-{{if eq (len .Issues) 0 }}success{{ else }}warning{{ end }}">
+                        <th class="name"><a href="{{.Tool.URL}}">{{ .Tool.Name }}</a></th>
+                        <td class="summary">Found <span class="count">{{ len .Issues }}</span> issue{{ if ne (len .Issues) 1 }}s{{ end }} in <span class="timing">{{ .Duration }}</span>.</td>
+                    </tr>
+                {{ end }}
+            </tbody>
+        </table>
 	</div>
+</div>
 
+<div class="container issues-cont">
     <h2>Issues</h2>
 	{{ if not .Patches }}
 		<p class="alert alert-success" role="alert">No issues found!</p>
@@ -86,22 +101,6 @@
 	</table>
     {{ end }}
 
-    <h2>Tools</h2>
-    <table class="table tools">
-        <thead>
-            <tr>
-                <th class="name">Tool</th><th class="summary">Summary</th>
-            </tr>
-        </thead>
-        <tbody>
-            {{ range .Analysis.Tools }}
-                <tr class="tool tool-{{if eq (len .Issues) 0 }}success{{ else }}warning{{ end }}">
-                    <th class="name"><a href="{{.Tool.URL}}">{{ .Tool.Name }}</a></th>
-                    <td class="summary">Found <span class="count">{{ len .Issues }}</span> issue{{ if ne (len .Issues) 1 }}s{{ end }} in <span class="timing">{{ .Duration }}</span>.</td>
-                </tr>
-            {{ end }}
-        </tbody>
-    </table>
 </div>
 
 {{ template "footer" . }}

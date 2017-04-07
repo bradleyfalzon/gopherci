@@ -9,22 +9,39 @@ footer { text-align: center; background-color: #f5f5f5; padding: 40px 20px; bord
 	background-color: #3069b3;
 	color: rgba(255, 255, 255, 0.85);
 	border-bottom: 1px solid white;
-	margin-bottom: 2rem;
 }
 .top-nav .logo { color: inherit; font-size: 26px; line-height: 1.7em; }
 .top-nav .logo .ci { font-weight: bold; }
 
 /* Analysis Summary */
-.asummary { border-left: 5px solid grey; margin-bottom: 2rem;}
+.asummary-cont { padding: 2rem 0; background: #fbfbfc; border-bottom: 1px solid #eceeef; }
+.asummary {
+    border-left: 5px solid grey;
+    margin-bottom: 2rem;
+    background: white;
+}
 .asummary.Success { border-left-color: #5cb85c; }
 .asummary.Failure { border-left-color: #d9534f; }
 .asummary.Error { border-left-color: #f0ad4e; }
+.asummary .table { margin-bottom: 0; border-right: 1px solid #eceeef; border-bottom: 1px solid #eceeef; }
 .asummary .durations { text-align: center; }
 .asummary .duration { color: #757575; }
-.asummary .duration-cont { border-right: 1px solid #eceeef; }
-.asummary .duration-cont:last-child { border: none; }
+.asummary .duration-cont { border-right: 1px solid #eceeef; border-bottom: 1px solid #eceeef; padding-top: .75em; }
+
+/* Analysis Tools Summary */
+.tools {
+    border-right: 1px solid #eceeef;
+    border-bottom: 1px solid #eceeef;
+    background: white;
+}
+.tools .name { width: 20%; }
+.tools .tool { border-left: 5px solid grey; }
+.tools .tool.tool-success { border-left-color: #5cb85c;  }
+.tools .tool.tool-warning { border-left-color: #f0ad4e;  }
+.tools .tool-warning .count { font-weight: bold; }
 
 /* Analysis Hunk */
+.issues-cont { padding: 2em 0; }
 .patch {
 	width: 100%;
 	margin: 0 auto 2rem;
@@ -43,10 +60,3 @@ footer { text-align: center; background-color: #f5f5f5; padding: 40px 20px; bord
 .patch .lno { text-align: right; background-color: rgba(250, 251, 252, 0.3); user-select: none; }
 .patch .range { background-color: #f3f8ff; }
 .patch tfoot tr:first-child { border-top: 1px solid #d7d7d7; }
-
-/* Analysis Tools Summary */
-.tools .name { width: 20%; }
-.tools .tool { border-left: 5px solid grey; }
-.tools .tool.tool-success { border-left-color: #5cb85c;  }
-.tools .tool.tool-warning { border-left-color: #f0ad4e;  }
-.tools .tool-warning .count { font-weight: bold; }
