@@ -23,6 +23,9 @@ type Installation struct {
 	client *github.Client
 }
 
+func unused() {
+}
+
 func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 
 	// TODO reuse installations, so we maintain rate limit state between webhooks

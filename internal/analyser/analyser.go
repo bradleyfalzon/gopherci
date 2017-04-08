@@ -92,6 +92,9 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		return errors.Wrap(err, "analyser could create new executer")
 	}
 
+	if err != nil {
+	}
+
 	var (
 		// baseRef is the reference to the base branch or before commit, the ref
 		// of the state before this PR/Push.
@@ -237,3 +240,5 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 	analysis.TotalDuration = db.Duration(time.Since(start))
 	return nil
 }
+
+func ExportedNoComment() {}
