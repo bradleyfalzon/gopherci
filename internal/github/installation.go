@@ -38,7 +38,6 @@ func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 		return nil, nil
 	}
 
-	log.Printf("found installation: %+v", installation)
 	itr, err := g.newInstallationTransport(installation.InstallationID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("could not initialise transport for installation id %v", installation.InstallationID))
