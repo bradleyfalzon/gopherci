@@ -57,7 +57,7 @@ footer { text-align: center; background-color: #f5f5f5; padding: 40px 20px; bord
 	border: 1px solid #d7d7d7;
 }
 .patch thead th { background-color: #f2f2f2; font-weight: bold; }
-.patch td, .patch th { padding: 7px 10px; }
+.patch td, .patch th { padding: 7px 10px; white-space: pre-wrap; }
 .patch .none { background-color: #fff; }
 .patch .e { background-color: floralwhite; }
 .patch .e td:nth-child(2) { text-align: right; font-weight: bold; }
