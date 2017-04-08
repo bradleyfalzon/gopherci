@@ -52,7 +52,9 @@ index 0000000..3de84a3
 					{Line: "", ChangeType: "none", LineNo: 4, Issues: nil},
 					{Line: "func main() {", ChangeType: "none", LineNo: 5, Issues: nil},
 					{Line: "       fmt.Println(\"Hi\")", ChangeType: "remove", LineNo: 6, Issues: nil},
-					{Line: "       fmt.Println(\"Hi: %v\", \"alice\")", ChangeType: "add", LineNo: 6, Issues: []string{"issue here"}},
+					{Line: "       fmt.Println(\"Hi: %v\", \"alice\")", ChangeType: "add", LineNo: 6, Issues: []db.Issue{
+						{Path: "main.go", Line: 6, Issue: "issue here"}},
+					},
 					{Line: "}", ChangeType: "none", LineNo: 7, Issues: nil},
 				},
 			},
