@@ -157,6 +157,7 @@ LEFT JOIN gh_installations ghi ON (a.gh_installation_id = ghi.id)
 		Name     string         `db:"name"`
 		URL      string         `db:"url"`
 		Duration Duration       `db:"duration"`
+		LineID   sql.NullInt64  `db:"issue_id"`
 		Path     sql.NullString `db:"path"`
 		Line     sql.NullInt64  `db:"line"`
 		HunkPos  sql.NullInt64  `db:"hunk_pos"`
@@ -165,7 +166,7 @@ LEFT JOIN gh_installations ghi ON (a.gh_installation_id = ghi.id)
 
 	// get all the tools and issues if they have them
 	err = db.sqlx.Select(&toolIssues, `
-   SELECT at.tool_id, at.duration, i.path, i.line, i.hunk_pos, i.issue,
+   SELECT at.tool_id, at.duration, i.id issue_id, i.path, i.line, i.hunk_pos, i.issue,
 		  t.name, t.url
      FROM analysis_tool at
 	 JOIN tools t ON (at.tool_id = t.id)
@@ -190,6 +191,7 @@ LEFT JOIN issues i ON (i.analysis_tool_id = at.id)
 		if issue.Issue.Valid {
 			at := analysis.Tools[toolID]
 			at.Issues = append(at.Issues, Issue{
+				ID:      int(issue.LineID.Int64),
 				Path:    issue.Path.String,
 				Line:    int(issue.Line.Int64),
 				HunkPos: int(issue.HunkPos.Int64),

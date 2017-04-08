@@ -171,6 +171,8 @@ type AnalysisTool struct {
 
 // Issue contains file, position and string describing a single issue.
 type Issue struct {
+	// ID is an internal issue ID
+	ID int
 	// Path is the relative path name of the file.
 	Path string
 	// Line is the line number of the file.

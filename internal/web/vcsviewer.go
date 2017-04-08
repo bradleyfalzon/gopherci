@@ -62,7 +62,7 @@ type Line struct {
 	Line       string
 	ChangeType ChangeType
 	LineNo     int
-	Issues     []string
+	Issues     []db.Issue
 }
 
 // DiffIssues reads a diff and adds the issues to the lines affected. Only
@@ -108,12 +108,12 @@ func DiffIssues(ctx context.Context, diffReader io.Reader, issues []db.Issue) ([
 
 				// Find issues matching this line, ignore removed lines as an
 				// issue may appear on the same line number that replaced this.
-				var lineIssues []string
+				var lineIssues []db.Issue
 				if changeType != ChangeRemove {
 					for _, issue := range issues {
 						if issue.Path == file.Path && issue.Line == diffLineNo {
 							hunkHasIssues = true
-							lineIssues = append(lineIssues, issue.Issue)
+							lineIssues = append(lineIssues, issue)
 						}
 					}
 				}

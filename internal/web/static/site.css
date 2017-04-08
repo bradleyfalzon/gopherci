@@ -39,6 +39,13 @@ footer { text-align: center; background-color: #f5f5f5; padding: 40px 20px; bord
 .tools .tool.tool-success { border-left-color: #5cb85c;  }
 .tools .tool.tool-warning { border-left-color: #f0ad4e;  }
 .tools .tool-warning .count { font-weight: bold; }
+.tools .tool-issue { border-left: 1px solid #f0ad4e;  }
+.tools .tool-issue .line { text-align: right; }
+.tools .tool-issue td {
+    padding: 0.4em 0.8em;
+    font-family: monospace;
+    background: #fff0da;
+}
 
 /* Analysis Hunk */
 .issues-cont { padding: 2em 0; }

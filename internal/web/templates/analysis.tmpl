@@ -63,6 +63,12 @@
                         <th class="name"><a href="{{.Tool.URL}}">{{ .Tool.Name }}</a></th>
                         <td class="summary">Found <span class="count">{{ len .Issues }}</span> issue{{ if ne (len .Issues) 1 }}s{{ end }} in <span class="timing">{{ .Duration }}</span>.</td>
                     </tr>
+                    {{ range .Issues }}
+                        <tr class="tool-issue">
+                            <td class="line"><a href="#issue-{{ .ID }}">{{ .Path }}:{{ .Line }}</a></td>
+                            <td class="summary">{{ .Issue }}</td>
+                        </tr>
+                    {{ end }}
                 {{ end }}
             </tbody>
         </table>
@@ -90,9 +96,9 @@
                         <td>{{ .Line }}</td>
                     </tr>
                     {{ range .Issues }}
-                        <tr class="e">
+                        <tr id="issue-{{ .ID }}" class="e">
                             <td class="lno"></td>
-                            <td>{{ . }}</td>
+                            <td>{{ .Issue }}</td>
                         </tr>
                     {{ end }}
                 {{ end }}
