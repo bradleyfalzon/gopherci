@@ -139,15 +139,15 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 	analysis.CloneDuration = db.Duration(time.Since(deltaStart))
 
 	// create a unified diff for use by revgrep
-	args := []string{"git", "diff", fmt.Sprintf("%v...%v", baseRef, config.HeadRef)}
-	patch, err := exec.Execute(ctx, args)
+
+	patch, err := getPatch(ctx, exec, baseRef, config.HeadRef)
 	if err != nil {
-		return fmt.Errorf("could not execute %v: %s\n%s", args, err, patch)
+		return errors.Wrap(err, "could not get patch")
 	}
 
 	// install dependencies, some static analysis tools require building a project
 	deltaStart = time.Now()
-	args = []string{"install-deps.sh"}
+	args := []string{"install-deps.sh"}
 	out, err := exec.Execute(ctx, args)
 	if err != nil {
 		return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
@@ -236,4 +236,25 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 
 	analysis.TotalDuration = db.Duration(time.Since(start))
 	return nil
+}
+
+func getPatch(ctx context.Context, exec Executer, baseRef, headRef string) ([]byte, error) {
+	args := []string{"git", "diff", fmt.Sprintf("%v...%v", baseRef, headRef)}
+	patch, err := exec.Execute(ctx, args)
+	if err != nil {
+		// The error may be because baseRef does not exist
+		// - remote ref has been removed (but then the clone wouldn't have worked)
+		// - new repository with zero history
+		// - a new branch with no shared history
+		// So use git show to generate a unified diff of just the latest ref.
+		var (
+			showArgs = []string{"git", "show", headRef}
+			showErr  error
+		)
+		patch, showErr = exec.Execute(ctx, showArgs)
+		if showErr != nil {
+			return patch, fmt.Errorf("could not execute %v: %s after trying to execute %v: %v", showArgs, showErr, args, err)
+		}
+	}
+	return patch, nil
 }

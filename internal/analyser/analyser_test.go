@@ -242,3 +242,66 @@ func TestAnalyse_unknown(t *testing.T) {
 		t.Fatal("expected error got nil")
 	}
 }
+
+func TestGetPatch(t *testing.T) {
+	wantPatch := []byte("git diff patch")
+
+	analyser := &mockAnalyser{
+		ExecuteOut: [][]byte{
+			wantPatch,
+		},
+		ExecuteErr: []error{
+			nil, // git diff
+		},
+	}
+
+	patch, err := getPatch(context.Background(), analyser, "abcdef~1", "abcdef")
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	expectedArgs := [][]string{
+		{"git", "diff", "abcdef~1...abcdef"},
+	}
+
+	if !reflect.DeepEqual(analyser.Executed, expectedArgs) {
+		t.Errorf("\nhave %v\nwant %v", analyser.Executed, expectedArgs)
+	}
+
+	if !reflect.DeepEqual(patch, wantPatch) {
+		t.Errorf("unexpected patch\nhave %v\nwant %v", patch, wantPatch)
+	}
+}
+
+func TestGetPatch_diffError(t *testing.T) {
+	wantPatch := []byte("git show patch")
+
+	analyser := &mockAnalyser{
+		ExecuteOut: [][]byte{
+			[]byte("git diff output"),
+			wantPatch,
+		},
+		ExecuteErr: []error{
+			&NonZeroError{ExitCode: 128}, // git diff
+			nil, // git show
+		},
+	}
+
+	patch, err := getPatch(context.Background(), analyser, "abcdef~1", "abcdef")
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	expectedArgs := [][]string{
+		{"git", "diff", "abcdef~1...abcdef"},
+		{"git", "show", "abcdef"},
+	}
+
+	if !reflect.DeepEqual(analyser.Executed, expectedArgs) {
+		t.Errorf("\nhave %v\nwant %v", analyser.Executed, expectedArgs)
+	}
+
+	if !reflect.DeepEqual(patch, wantPatch) {
+		t.Errorf("unexpected patch\nhave %v\nwant %v", patch, wantPatch)
+	}
+}
