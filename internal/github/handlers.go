@@ -61,20 +61,150 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("github: integration event: %v, installation id: %v", *e.Action, *e.Installation.ID)
 		err = g.integrationInstallationEvent(e)
 	case *github.PushEvent:
+		var installation *Installation
+		if installation, err = g.NewInstallation(*e.Installation.ID); err != nil {
+			break
+		}
+		if !installation.IsEnabled() {
+			err = &ignoreEvent{reason: ignoreNoInstallation}
+			break
+		}
+		if !checkPushAffectsGo(e) {
+			err = &ignoreEvent{reason: ignoreNoGoFiles}
+			break
+		}
 		log.Printf("github: push event: installation id: %v", *e.Installation.ID)
 		g.queuePush <- e
 	case *github.PullRequestEvent:
-		if validPRAction(*e.Action) {
-			log.Printf("github: pull request event: %v, installation id: %v", *e.Action, *e.Installation.ID)
-			g.queuePush <- e
+		if err = checkPRAction(e); err != nil {
+			break
 		}
+		var (
+			installation *Installation
+			ok           bool
+		)
+		if installation, err = g.NewInstallation(*e.Installation.ID); err != nil {
+			break
+		}
+		if !installation.IsEnabled() {
+			err = &ignoreEvent{reason: ignoreNoInstallation}
+			break
+		}
+
+		ok, err = checkPRAffectsGo(r.Context(), installation, *e.Repo.Owner.Login, *e.Repo.Name, *e.Number)
+		if err != nil {
+			break
+		}
+		if !ok {
+			err = &ignoreEvent{reason: ignoreNoGoFiles}
+			break
+		}
+		log.Printf("github: pull request event: %v, installation id: %v", *e.Action, *e.Installation.ID)
+		g.queuePush <- e
 	default:
-		log.Printf("github: ignored webhook event: %T", event)
+		err = &ignoreEvent{reason: ignoreUnknownEvent}
 	}
-	if err != nil {
+
+	switch err.(type) {
+	case nil:
+	case *ignoreEvent:
+		log.Printf("github: ignoring event %T: %v", event, err)
+	default:
 		log.Println("github: event handler error:", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+type ignoreReason int
+
+const (
+	ignoreUnknownEvent ignoreReason = iota
+	ignoreInvalidAction
+	ignoreNoAction
+	ignoreNoInstallation
+	ignoreNoGoFiles
+)
+
+// ignoreEvent indicates the event should be accepted but ignored.
+type ignoreEvent struct {
+	reason ignoreReason
+	extra  string
+}
+
+// Error implements the error interface.
+func (e *ignoreEvent) Error() string {
+	switch e.reason {
+	case ignoreUnknownEvent:
+		return "unknown event"
+	case ignoreInvalidAction:
+		return "invalid action: " + e.extra
+	case ignoreNoAction:
+		return "no action"
+	case ignoreNoInstallation:
+		return "no enabled installation found"
+	case ignoreNoGoFiles:
+		return "no go files affected"
+	}
+	return e.extra
+}
+
+// checkPRAction checks a pull request's action to determine whether the event
+// should continue to be processed. Returns error type *ignoreEvent if the event
+// should be ignored, nil if it should be processed, or other error if check
+// could not be completed.
+func checkPRAction(e *github.PullRequestEvent) error {
+	if e.Action == nil {
+		return &ignoreEvent{reason: ignoreNoAction}
+	}
+	if *e.Action != "opened" && *e.Action != "synchronize" && *e.Action != "reopened" {
+		return &ignoreEvent{reason: ignoreInvalidAction, extra: *e.Action}
+	}
+	return nil
+}
+
+// checkPRAffectsGo returns true if a pull request modifies, adds or removes
+// Go files, else returns error if an error occurs.
+func checkPRAffectsGo(ctx context.Context, installation *Installation, owner, repo string, number int) (bool, error) {
+	opt := &github.ListOptions{PerPage: 100}
+	for {
+		files, resp, err := installation.client.PullRequests.ListFiles(ctx, owner, repo, number, opt)
+		if err != nil {
+			return false, errors.Wrap(err, "could not list files")
+		}
+		for _, file := range files {
+			if hasGoExtension(*file.Filename) {
+				return true, nil
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return false, nil
+}
+
+// checkPushAffectsGo returns true if the event modifies, adds or removes Go files.
+func checkPushAffectsGo(event *github.PushEvent) bool {
+	hasGoFile := func(files []string) bool {
+		for _, filename := range files {
+			if hasGoExtension(filename) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, commit := range event.Commits {
+		if hasGoFile(commit.Modified) || hasGoFile(commit.Added) || hasGoFile(commit.Removed) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasGoExtension returns true if the filename has the suffix ".go".
+func hasGoExtension(filename string) bool {
+	return strings.HasSuffix(filename, ".go")
 }
 
 func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationEvent) error {
@@ -180,7 +310,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	if err != nil {
 		return errors.Wrap(err, "error getting installation")
 	}
-	if install == nil {
+	if !install.IsEnabled() {
 		return fmt.Errorf("could not find installation with ID %v", cfg.installationID)
 	}
 
@@ -273,12 +403,6 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	}
 
 	return nil
-}
-
-// validPRAction return true if a pull request action is valid and should not
-// be ignored.
-func validPRAction(action string) bool {
-	return action == "opened" || action == "synchronize" || action == "reopened"
 }
 
 // stripScheme removes the scheme/protocol and :// from a URL.

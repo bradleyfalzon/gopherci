@@ -52,6 +52,11 @@ func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 	return &Installation{ID: installation.ID, client: client}, nil
 }
 
+// IsEnabled returns true if an installation is enabled.
+func (i *Installation) IsEnabled() bool {
+	return i != nil
+}
+
 // StatusState is the state of a GitHub Status API as defined in
 // https://developer.github.com/v3/repos/statuses/
 type StatusState string

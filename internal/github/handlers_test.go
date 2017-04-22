@@ -3,6 +3,8 @@ package github
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -119,7 +121,7 @@ func TestCallbackHandler(t *testing.T) {
 	}
 }
 
-func TestWebhookHandler(t *testing.T) {
+func TestWebhookHandler_signatures(t *testing.T) {
 	tests := []struct {
 		signature  string
 		event      string
@@ -145,6 +147,265 @@ func TestWebhookHandler(t *testing.T) {
 		if w.Code != test.expectCode {
 			t.Fatalf("have code: %v, want: %v, test: %+v", w.Code, test.expectCode, test)
 		}
+	}
+}
+
+func TestWebhookHandler(t *testing.T) {
+	goodPush := func() *github.PushEvent {
+		return &github.PushEvent{
+			Installation: &github.Installation{
+				ID: github.Int(1),
+			},
+			Repo: &github.PushEventRepository{
+				ID:          github.Int(2),
+				StatusesURL: github.String("https://github.com/owner/repo/status/{sha}"),
+				CloneURL:    github.String("https://github.com/owner/repo.git"),
+				HTMLURL:     github.String("https://github.com/owner/repo"),
+			},
+			After:   github.String("abcdef"),
+			Commits: []github.PushEventCommit{{Added: []string{"main.go"}}},
+		}
+	}
+
+	goodPR := func() *github.PullRequestEvent {
+		return &github.PullRequestEvent{
+			Action: github.String("opened"),
+			Number: github.Int(2),
+			PullRequest: &github.PullRequest{
+				StatusesURL: github.String("https://github.com/owner/repo/status/abcdef"),
+				Base: &github.PullRequestBranch{
+					Repo: &github.Repository{
+						HTMLURL:  github.String("https://github.com/owner/repo"),
+						CloneURL: github.String("https://github.com/owner/repo.git"),
+						Name:     github.String("repo"),
+						Owner: &github.User{
+							Login: github.String("owner"),
+						},
+					},
+					Ref: github.String("base-branch"),
+				},
+				Head: &github.PullRequestBranch{
+					Repo: &github.Repository{
+						CloneURL: github.String("https://github.com/owner/repo.git"),
+					},
+					SHA: github.String("abcdef"),
+					Ref: github.String("head-branch"),
+				},
+			},
+			Installation: &github.Installation{
+				ID: github.Int(1),
+			},
+			Repo: &github.Repository{
+				Owner: &github.User{
+					Login: github.String("owner"),
+				},
+				Name: github.String("repo"),
+				ID:   github.Int(2),
+			},
+		}
+	}
+
+	// Known good push
+	push := goodPush()
+
+	// No go files
+	pushNoGo := goodPush()
+	pushNoGo.Commits = []github.PushEventCommit{{Added: []string{"main.php"}}}
+
+	// No valid installation
+	pushNoInstall := goodPush()
+	pushNoInstall.Installation.ID = github.Int(2)
+
+	// Known good PR
+	pr := goodPR()
+
+	// Mock API will respond with no go files
+	prNoGo := goodPR()
+	prNoGo.Number = github.Int(4)
+
+	// No install
+	prNoInstall := goodPR()
+	prNoInstall.Installation.ID = github.Int(2)
+
+	// Invalid action
+	prInvalidAction := goodPR()
+	prInvalidAction.Action = github.String("invalid")
+
+	tests := []struct {
+		payload  interface{}
+		event    string
+		wantMsg  bool
+		wantCode int // http status code we want the response to be
+	}{
+		{push, "push", true, http.StatusOK},
+		{pushNoGo, "push", false, http.StatusOK},
+		{pushNoInstall, "push", false, http.StatusOK},
+		{pr, "pull_request", true, http.StatusOK},
+		{prNoGo, "pull_request", false, http.StatusOK},
+		{prNoInstall, "pull_request", false, http.StatusOK},
+		{prInvalidAction, "pull_request", false, http.StatusOK},
+	}
+
+	const (
+		installationID = 1
+		accountID      = 2
+		senderID       = 3
+	)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.RequestURI {
+		case "/installations/1/access_tokens":
+			// respond with any token to installation transport
+			fmt.Fprintln(w, "{}")
+		case "/repos/owner/repo/pulls/2/files?per_page=100":
+			file := github.CommitFile{Filename: github.String("main.go")}
+			js, _ := json.Marshal([]*github.CommitFile{&file})
+			fmt.Fprintln(w, string(js))
+		case "/repos/owner/repo/pulls/4/files?per_page=100":
+			file := github.CommitFile{Filename: github.String("main.php")} // non go file
+			js, _ := json.Marshal([]*github.CommitFile{&file})
+			fmt.Fprintln(w, string(js))
+		default:
+			t.Fatalf(r.RequestURI)
+		}
+	}))
+	defer ts.Close()
+
+	for i, test := range tests {
+		g, _, memDB := setup(t)
+		g.baseURL = ts.URL
+
+		// add installation
+		_ = memDB.AddGHInstallation(installationID, accountID, senderID)
+		memDB.EnableGHInstallation(installationID)
+
+		// make channel
+		c := make(chan interface{}, 1) // buffer of 1 so we don't need to block
+		g.queuePush = c
+
+		// make response writer
+		w := httptest.NewRecorder()
+
+		// make request
+		js, _ := json.Marshal(test.payload)
+		r, _ := http.NewRequest("POST", "http://example.com", bytes.NewReader(js))
+		r.Header.Add("X-GitHub-Event", test.event)
+
+		sig := hmac.New(sha1.New, g.webhookSecret)
+		sig.Write(js)
+		r.Header.Add("X-Hub-Signature", fmt.Sprintf("sha1=%x", sig.Sum(nil)))
+
+		// send request
+		g.WebHookHandler(w, r)
+
+		// check response code
+		if w.Code != test.wantCode {
+			t.Errorf("have: %v, want: %v, test: %v", w.Code, test.wantCode, i)
+		}
+
+		// check channel
+		if test.wantMsg {
+			// check length of channel so we don't block forever
+			if len(c) < 1 {
+				t.Errorf("did not receive message on channel for test %v", i)
+			} else {
+				haveMsg := <-c
+
+				if !reflect.DeepEqual(haveMsg, test.payload) {
+					t.Errorf("have: %v, want: %v, test: %v", haveMsg, test.payload, i)
+				}
+			}
+		} else {
+			if len(c) > 0 {
+				t.Errorf("unexpected message for test %v: %v", i, <-c)
+			}
+		}
+	}
+}
+
+func TestCheckPRAction(t *testing.T) {
+	tests := []struct {
+		action *string
+		want   error
+	}{
+		{nil, &ignoreEvent{}},
+		{github.String("invalid"), &ignoreEvent{}},
+		{github.String("opened"), nil},
+		{github.String("synchronize"), nil},
+		{github.String("reopened"), nil},
+	}
+
+	for _, test := range tests {
+		have := checkPRAction(&github.PullRequestEvent{Action: test.action})
+		if reflect.TypeOf(have) != reflect.TypeOf(test.want) {
+			t.Errorf("have: %v want: %v test: %#v", have, test.want, test)
+		}
+	}
+}
+
+func TestCheckPushAffectsGo(t *testing.T) {
+	tests := []struct {
+		commits github.PushEventCommit
+		want    bool
+	}{
+		{github.PushEventCommit{}, false},
+		{github.PushEventCommit{Added: []string{"main.php"}}, false},
+		{github.PushEventCommit{Added: []string{"main.go"}}, true},
+		{github.PushEventCommit{Removed: []string{"main.go"}}, true},
+		{github.PushEventCommit{Modified: []string{"main.go"}}, true},
+	}
+
+	for _, test := range tests {
+		e := &github.PushEvent{
+			Commits: []github.PushEventCommit{test.commits},
+		}
+		have := checkPushAffectsGo(e)
+		if have != test.want {
+			t.Errorf("have: %v, want: %v", have, test.want)
+		}
+	}
+}
+
+func TestCheckPRAffectsGo(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.RequestURI {
+		case "/installations/1/access_tokens":
+			// respond with any token to installation transport
+			fmt.Fprintln(w, "{}")
+		case "/repos/owner/repo/pulls/2/files?per_page=100":
+			file := github.CommitFile{Filename: github.String("main.php")} // first page has no go files
+			js, _ := json.Marshal([]*github.CommitFile{&file})
+			w.Header().Add("Link", `</repos/owner/repo/pulls/2/files/?page=2&per_page=100>; rel="next"`)
+			fmt.Fprintln(w, string(js))
+		case "/repos/owner/repo/pulls/2/files?page=2&per_page=100":
+			file := github.CommitFile{Filename: github.String("main.go")} // second page does
+			js, _ := json.Marshal([]*github.CommitFile{&file})
+			fmt.Fprintln(w, string(js))
+		default:
+			t.Fatalf(r.RequestURI)
+		}
+	}))
+	defer ts.Close()
+
+	const installationID = 1
+
+	// Get installation
+	g, _, memDB := setup(t)
+	g.baseURL = ts.URL
+	_ = memDB.AddGHInstallation(installationID, 2, 3)
+	memDB.EnableGHInstallation(installationID)
+	installation, err := g.NewInstallation(installationID)
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	have, err := checkPRAffectsGo(context.Background(), installation, "owner", "repo", 2)
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	if want := true; have != want {
+		t.Errorf("have: %v, want: %v", have, want)
 	}
 }
 
@@ -432,25 +693,6 @@ func TestAnalyse_disabled(t *testing.T) {
 	err := g.Analyse(cfg)
 	if want := errors.New("could not find installation with ID 2"); err.Error() != want.Error() {
 		t.Errorf("expected error %q have %q", want, err)
-	}
-}
-
-func TestValidPRAction(t *testing.T) {
-	tests := []struct {
-		action string
-		want   bool
-	}{
-		{"invalid", false},
-		{"opened", true},
-		{"synchronize", true},
-		{"reopened", true},
-	}
-
-	for _, test := range tests {
-		have := validPRAction(test.action)
-		if have != test.want {
-			t.Errorf("have: %v want: %v test: %#v", have, test.want, test)
-		}
 	}
 }
 

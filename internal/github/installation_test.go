@@ -15,6 +15,17 @@ import (
 	"github.com/google/go-github/github"
 )
 
+func TestInstallation_isEnabled(t *testing.T) {
+	var i *Installation
+	if want := false; i.IsEnabled() != want {
+		t.Errorf("want: %v, have: %v", want, i.IsEnabled())
+	}
+	i = &Installation{}
+	if want := true; i.IsEnabled() != want {
+		t.Errorf("want: %v, have: %v", want, i.IsEnabled())
+	}
+}
+
 func TestFilterIssues_maxIssueComments(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer ts.Close()
