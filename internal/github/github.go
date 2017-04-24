@@ -6,6 +6,7 @@ import (
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/sethgrid/pester"
 )
 
 // GitHub is the type gopherci uses to interract with github.com.
@@ -49,6 +50,7 @@ func (g *GitHub) newInstallationTransport(installationID int) (*ghinstallation.T
 	if err != nil {
 		return nil, err
 	}
+	tr.Client = pester.New() // provide retry functionality for intermittent network issues
 	tr.BaseURL = g.baseURL
 	return tr, nil
 }
