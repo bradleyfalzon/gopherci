@@ -31,15 +31,9 @@ type Analyser interface {
 // Config hold configuration options for use in analyser. All options
 // are required.
 type Config struct {
-	// EventType defines the type of event being processed.
-	EventType EventType
-	// BaseURL is the VCS fetchable base repo URL.
-	BaseURL string
 	// BaseRef is the reference we want to merge into, for EventTypePullRequest
 	// it's likely the branch, for EventTypePush it's a sha~number.
 	BaseRef string
-	// HeadURL is the VCS fetchable repo URL containing the changes to be merged.
-	HeadURL string
 	// HeadRef is the name of the reference containing changes.
 	HeadRef string
 	// GoSrcPath is the repository's path when placed in $GOPATH/src.
@@ -69,23 +63,10 @@ func (e *NonZeroError) Error() string {
 	return fmt.Sprintf("%v returned exit code %v", e.args, e.ExitCode)
 }
 
-// EventType defines the type of even which needs to be analysed, as there
-// maybe different or optimal methods based on the type.
-type EventType int
-
-const (
-	// EventTypeUnknown cannot be handled and is the zero value for an EventType.
-	EventTypeUnknown EventType = iota
-	// EventTypePullRequest is a Pull Request.
-	EventTypePullRequest
-	// EventTypePush is a push.
-	EventTypePush
-)
-
 // Analyse downloads a repository set in config in an environment provided by
 // analyser, running the series of tools. Writes results to provided analysis,
 // or an error. The repository is expected to contain at least one Go package.
-func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Config, analysis *db.Analysis) error {
+func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, tools []db.Tool, config Config, analysis *db.Analysis) error {
 	start := time.Now()
 	defer func() {
 		analysis.TotalDuration = db.Duration(time.Since(start))
@@ -102,54 +83,14 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		}
 	}()
 
-	var (
-		// baseRef is the reference to the base branch or before commit, the ref
-		// of the state before this PR/Push.
-		baseRef    string
-		deltaStart = time.Now() // start of specific analysis
-	)
-	switch config.EventType {
-	case EventTypePullRequest:
-		// clone repo
-		args := []string{"git", "clone", "--depth", "1", "--branch", config.HeadRef, "--single-branch", config.HeadURL, "."}
-		out, err := exec.Execute(ctx, args)
-		if err != nil {
-			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
-		}
-
-		// This is a PR, fetch base as some tools (apicompat) needs to
-		// reference it.
-		args = []string{"git", "fetch", "--depth", "1", config.BaseURL, config.BaseRef}
-		out, err = exec.Execute(ctx, args)
-		if err != nil {
-			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
-		}
-		baseRef = "FETCH_HEAD"
-	case EventTypePush:
-		// clone repo, this cannot be shallow and needs access to all commits
-		// therefore cannot be shallow (or if it is, would required a very
-		// large depth and --no-single-branch).
-		args := []string{"git", "clone", config.HeadURL, "."}
-		out, err := exec.Execute(ctx, args)
-		if err != nil {
-			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
-		}
-
-		// Checkout sha
-		args = []string{"git", "checkout", config.HeadRef}
-		out, err = exec.Execute(ctx, args)
-		if err != nil {
-			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
-		}
-		baseRef = config.BaseRef
-	default:
-		return errors.Errorf("unknown event type %T", config.EventType)
+	deltaStart := time.Now() // start of specific analysis
+	if err := cloner.Clone(ctx, exec); err != nil {
+		return errors.WithMessage(err, "could not clone")
 	}
 	analysis.CloneDuration = db.Duration(time.Since(deltaStart))
 
 	// create a unified diff for use by revgrep
-
-	patch, err := getPatch(ctx, exec, baseRef, config.HeadRef)
+	patch, err := getPatch(ctx, exec, config.BaseRef, config.HeadRef)
 	if err != nil {
 		return errors.Wrap(err, "could not get patch")
 	}
@@ -181,7 +122,7 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 			switch arg {
 			case ArgBaseBranch: // TODO change to ArgBaseRef
 				// Tool wants the base ref name as a flag
-				arg = baseRef
+				arg = config.BaseRef
 			}
 			args = append(args, arg)
 		}
