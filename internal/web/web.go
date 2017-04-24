@@ -53,7 +53,7 @@ func (web *Web) errorHandler(w http.ResponseWriter, r *http.Request, code int, d
 		page.Desc = http.StatusText(code)
 	}
 
-	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(code)
 	if err := web.templates.ExecuteTemplate(w, "error.tmpl", page); err != nil {
 		log.Println("error parsing error template:", err)
