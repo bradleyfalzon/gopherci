@@ -84,7 +84,7 @@ const (
 
 // Analyse downloads a repository set in config in an environment provided by
 // analyser, running the series of tools. Writes results to provided analysis,
-// or an error.
+// or an error. The repository is expected to contain at least one Go package.
 func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Config, analysis *db.Analysis) error {
 	// Get a new executer/environment to execute in
 	exec, err := analyser.NewExecuter(ctx, config.GoSrcPath)
