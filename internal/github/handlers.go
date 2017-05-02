@@ -339,22 +339,27 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		return errors.Wrapf(err, "could not set status to pending for %v", cfg.statusesURL)
 	}
 
-	// if Analyse returns an error, set status as internally failed
+	// if Analyse returns an error, set status as internally failed, and if
+	// we were panicking, catch it, set the error, and then panic again, the
+	// stacktrack should be maintained
 	defer func() {
+		var r interface{}
+		if r = recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+
 		if err != nil {
 			if serr := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error", analysisURL); serr != nil {
 				log.Printf("could not set status to error for %v: %s", cfg.statusesURL, serr)
 			}
-		}
-	}()
 
-	// if Analyse returns an error, fail the analysis
-	defer func() {
-		if err != nil {
-			ferr := g.db.FinishAnalysis(analysis.ID, db.AnalysisStatusError, nil)
-			if ferr != nil {
+			if ferr := g.db.FinishAnalysis(analysis.ID, db.AnalysisStatusError, nil); ferr != nil {
 				log.Printf("could not set analysis to error for analysisID %v: %s", analysis.ID, ferr)
 			}
+		}
+
+		if r != nil {
+			panic(r) // panic maintaining the stacktrace
 		}
 	}()
 
