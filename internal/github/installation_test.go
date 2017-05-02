@@ -72,6 +72,11 @@ func TestFilterIssues_deduplicate(t *testing.T) {
 		case fmt.Sprintf("/repos/%v/%v/pulls/%v/comments", expectedOwner, expectedRepo, expectedPR):
 			comments := []*github.PullRequestComment{
 				{
+					Body:     nil, // nil check
+					Path:     nil, // nil check
+					Position: nil, // nil check
+				},
+				{
 					Body:     github.String(expectedCmtBody),
 					Path:     github.String(expectedCmtPath),
 					Position: github.Int(expectedCmtPos),

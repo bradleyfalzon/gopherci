@@ -121,6 +121,9 @@ func (i *Installation) FilterIssues(ctx context.Context, owner, repo string, prN
 	for i := len(issues) - 1; i >= 0; i-- {
 		issue := issues[i]
 		for _, ec := range ecomments {
+			if ec.Path == nil || ec.Position == nil || ec.Body == nil {
+				continue
+			}
 			if issue.Path == *ec.Path && issue.HunkPos == *ec.Position && issue.Issue == *ec.Body {
 				issues = append(issues[:i], issues[i+1:]...)
 				break
