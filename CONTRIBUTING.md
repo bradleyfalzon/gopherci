@@ -56,7 +56,9 @@ instead of the default:
 
 # Integration Tests
 
-Integration tests can be ran using the `go test -tags=integration ./...` command. This requires a series of environment
+Integration tests can be ran using the `make test-integration` command. This requires a series of environment
 variables set, see `.env.example` for a list and description. A GitHub account is also required, along with a repository
 and personal access token, for this reason it's recommended to use a test account to avoid the issues and comments being
 added to your profile, and to ensure the personal access token has minimal access.
+
+Additionally GCPPubSub integration tests require a Google Service Account, see Development Environment.

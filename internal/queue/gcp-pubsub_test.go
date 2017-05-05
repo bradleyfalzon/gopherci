@@ -1,3 +1,5 @@
+//+build integration
+
 package queue
 
 import (
@@ -16,9 +18,6 @@ import (
 const projectID = "gopherci-dev"
 
 func TestGCPPubSubQueue(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
 	// it appears some other routine maybe leaked
 	// by the http client
 	//defer leaktest.Check(t)() // ensure all goroutines exit
@@ -72,10 +71,6 @@ func TestGCPPubSubQueue(t *testing.T) {
 }
 
 func TestGCPPubSubQueue_timeout(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
-
 	// Set cxnTimeout to a value that will be exceeded
 	cxnTimeout = time.Millisecond
 
