@@ -86,17 +86,26 @@ const (
 // analyser, running the series of tools. Writes results to provided analysis,
 // or an error. The repository is expected to contain at least one Go package.
 func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Config, analysis *db.Analysis) error {
+	start := time.Now()
+	defer func() {
+		analysis.TotalDuration = db.Duration(time.Since(start))
+	}()
+
 	// Get a new executer/environment to execute in
 	exec, err := analyser.NewExecuter(ctx, config.GoSrcPath)
 	if err != nil {
 		return errors.Wrap(err, "analyser could create new executer")
 	}
+	defer func() {
+		if err := exec.Stop(ctx); err != nil {
+			log.Printf("warning: could not stop executer: %v", err)
+		}
+	}()
 
 	var (
 		// baseRef is the reference to the base branch or before commit, the ref
 		// of the state before this PR/Push.
 		baseRef    string
-		start      = time.Now() // start of entire analysis
 		deltaStart = time.Now() // start of specific analysis
 	)
 	switch config.EventType {
@@ -228,13 +237,6 @@ func Analyse(ctx context.Context, analyser Analyser, tools []db.Tool, config Con
 		}
 	}
 
-	log.Printf("stopping executer")
-	if err := exec.Stop(ctx); err != nil {
-		log.Printf("warning: could not stop executer: %v", err)
-	}
-	log.Printf("finished stopping executer")
-
-	analysis.TotalDuration = db.Duration(time.Since(start))
 	return nil
 }
 
