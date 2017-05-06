@@ -13,5 +13,6 @@ before_install:
     - docker pull gopherci/gopherci-env:latest
     - go get github.com/mattn/goveralls
     - go get golang.org/x/tools/cmd/cover
+    - make deps
 script:
     - $HOME/gopath/bin/goveralls -service=travis-ci

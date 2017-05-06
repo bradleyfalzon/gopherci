@@ -1,3 +1,6 @@
+deps:
+	go get -u -t -v ./...
+
 install:
 	go install
 	gopherci
