@@ -20,6 +20,7 @@ func NewMockDB() *MockDB {
 	}
 }
 
+// ForceError forces MockDB to return err on all methods that return an error.
 func (db *MockDB) ForceError(err error) {
 	db.err = err
 }
