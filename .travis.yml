@@ -1,6 +1,6 @@
 language: go
 go:
-    - master
+    - 1.x
 # sudo for docker service
 # https://docs.travis-ci.com/user/docker/
 sudo: required
