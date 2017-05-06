@@ -12,7 +12,7 @@ test:
 test-integration:
 	@echo Running integration tests
 	go install
-	go test -tags integration -v -run TestGCPPubSubQueue ./internal/queue/
-	go test -tags integration -v
+	go test -tags integration_gcppubsub -v ./internal/queue/
+	go test -tags integration_github -v
 
 test-all: test test-integration

@@ -1,4 +1,4 @@
-//+build integration
+//+build integration_gcppubsub
 
 package queue
 
