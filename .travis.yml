@@ -15,4 +15,4 @@ before_install:
     - go get golang.org/x/tools/cmd/cover
     - make deps
 script:
-    - $HOME/gopath/bin/goveralls -flags="-tags integration_gcppubsub" -service=travis-ci
+    - $HOME/gopath/bin/goveralls -service=travis-ci

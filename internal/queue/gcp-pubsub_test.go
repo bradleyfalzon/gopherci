@@ -1,5 +1,3 @@
-//+build integration_gcppubsub
-
 package queue
 
 import (
