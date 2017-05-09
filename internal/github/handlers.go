@@ -226,7 +226,10 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 // PushConfig returns an AnalyseConfig for a GitHub Push Event.
 func PushConfig(e *github.PushEvent) AnalyseConfig {
 	return AnalyseConfig{
-		eventType:       analyser.EventTypePush,
+		cloner: &analyser.PushCloner{
+			HeadURL: *e.Repo.CloneURL,
+			HeadRef: *e.After,
+		},
 		installationID:  *e.Installation.ID,
 		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/push",
@@ -236,11 +239,9 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 		// used in api request
 		commitFrom: fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
 		commitTo:   *e.After,
-		baseURL:    *e.Repo.CloneURL,
 		// baseRef is after~numCommits to better handle forced pushes, as a
 		// forced push has the before ref of a commit that's been overwritten.
 		baseRef:   fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
-		headURL:   *e.Repo.CloneURL,
 		headRef:   *e.After,
 		goSrcPath: stripScheme(*e.Repo.HTMLURL),
 	}
@@ -250,14 +251,17 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 func PullRequestConfig(e *github.PullRequestEvent) AnalyseConfig {
 	pr := e.PullRequest
 	return AnalyseConfig{
-		eventType:       analyser.EventTypePullRequest,
+		cloner: &analyser.PullRequestCloner{
+			BaseURL: *pr.Base.Repo.CloneURL,
+			BaseRef: *pr.Base.Ref,
+			HeadURL: *pr.Head.Repo.CloneURL,
+			HeadRef: *pr.Head.Ref,
+		},
 		installationID:  *e.Installation.ID,
 		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/pr",
 		statusesURL:     *pr.StatusesURL,
-		baseURL:         *pr.Base.Repo.CloneURL,
-		baseRef:         *pr.Base.Ref,
-		headURL:         *pr.Head.Repo.CloneURL,
+		baseRef:         "FETCH_HEAD",
 		headRef:         *pr.Head.Ref,
 		goSrcPath:       stripScheme(*pr.Base.Repo.HTMLURL),
 		owner:           *pr.Base.Repo.Owner.Login,
@@ -270,7 +274,7 @@ func PullRequestConfig(e *github.PullRequestEvent) AnalyseConfig {
 // AnalyseConfig is a configuration struct for the Analyse method, all fields
 // are required, unless otherwise stated.
 type AnalyseConfig struct {
-	eventType       analyser.EventType
+	cloner          analyser.Cloner
 	installationID  int
 	repositoryID    int
 	statusesContext string
@@ -284,9 +288,7 @@ type AnalyseConfig struct {
 	pr int
 
 	// for analyser.
-	baseURL   string // base for pr, before for push.
 	baseRef   string // ref can be branch for pr or sha~numCommits for push.
-	headURL   string
 	headRef   string // ref can be branch for pr or sha (after) for push.
 	goSrcPath string
 
@@ -365,15 +367,12 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 
 	// Analyse
 	acfg := analyser.Config{
-		EventType: cfg.eventType,
-		BaseURL:   cfg.baseURL,
 		BaseRef:   cfg.baseRef,
-		HeadURL:   cfg.headURL,
 		HeadRef:   cfg.headRef,
 		GoSrcPath: cfg.goSrcPath,
 	}
 
-	err = analyser.Analyse(ctx, g.analyser, tools, acfg, analysis)
+	err = analyser.Analyse(ctx, g.analyser, cfg.cloner, tools, acfg, analysis)
 	if err != nil {
 		return errors.Wrap(err, "could not run analyser")
 	}

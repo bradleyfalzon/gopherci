@@ -465,16 +465,17 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 
 func TestPushConfig(t *testing.T) {
 	want := AnalyseConfig{
-		eventType:       analyser.EventTypePush,
+		cloner: &analyser.PushCloner{
+			HeadURL: "https://github.com/owner/repo.git",
+			HeadRef: "abcdef",
+		},
 		installationID:  1,
 		repositoryID:    2,
 		statusesContext: "ci/gopherci/push",
 		statusesURL:     "https://github.com/owner/repo/status/abcdef",
 		commitFrom:      "abcdef~2",
 		commitTo:        "abcdef",
-		baseURL:         "https://github.com/owner/repo.git",
 		baseRef:         "abcdef~2",
-		headURL:         "https://github.com/owner/repo.git",
 		headRef:         "abcdef",
 		goSrcPath:       "github.com/owner/repo",
 	}
@@ -493,21 +494,24 @@ func TestPushConfig(t *testing.T) {
 	}
 
 	have := PushConfig(e)
-	if have != want {
+	if !reflect.DeepEqual(have, want) {
 		t.Errorf("have:\n%+v\nwant:\n%+v", have, want)
 	}
 }
 
 func TestPullRequestConfig(t *testing.T) {
 	want := AnalyseConfig{
-		eventType:       analyser.EventTypePullRequest,
+		cloner: &analyser.PullRequestCloner{
+			HeadURL: "https://github.com/owner/repo.git",
+			HeadRef: "head-branch",
+			BaseURL: "https://github.com/owner/repo.git",
+			BaseRef: "base-branch",
+		},
 		installationID:  1,
 		repositoryID:    2,
 		statusesContext: "ci/gopherci/pr",
 		statusesURL:     "https://github.com/owner/repo/status/abcdef",
-		baseURL:         "https://github.com/owner/repo.git",
-		baseRef:         "base-branch",
-		headURL:         "https://github.com/owner/repo.git",
+		baseRef:         "FETCH_HEAD",
 		headRef:         "head-branch",
 		goSrcPath:       "github.com/owner/repo",
 		owner:           "owner",
@@ -547,7 +551,7 @@ func TestPullRequestConfig(t *testing.T) {
 		},
 	}
 	have := PullRequestConfig(e)
-	if have != want {
+	if !reflect.DeepEqual(have, want) {
 		t.Errorf("have:\n%+v\nwant:\n%+v", have, want)
 	}
 }
@@ -638,13 +642,11 @@ func TestAnalyse(t *testing.T) {
 	}
 
 	cfg := AnalyseConfig{
-		eventType:       analyser.EventTypePullRequest,
+		cloner:          &analyser.PushCloner{},
 		installationID:  installationID,
 		statusesContext: "ci/gopherci/pr",
 		statusesURL:     ts.URL + "/status-url",
-		baseURL:         "https://github.com/owner/repo.git",
 		baseRef:         "base-branch",
-		headURL:         "https://github.com/owner/repo.git",
 		headRef:         "head-branch",
 		goSrcPath:       "github.com/owner/repo",
 		owner:           expectedOwner,

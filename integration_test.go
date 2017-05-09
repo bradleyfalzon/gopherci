@@ -152,7 +152,7 @@ func (it *IntegrationTest) WaitForSuccess(ref, statusContext string) *github.Rep
 			case "success":
 				return &status
 			case "failure", "error":
-				it.t.Fatalf("status %v for ref %v", ref)
+				it.t.Fatalf("status %v for ref %v", *status.State, ref)
 			}
 		}
 		time.Sleep(time.Second)
