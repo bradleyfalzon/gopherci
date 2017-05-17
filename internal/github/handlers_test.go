@@ -208,6 +208,10 @@ func TestWebhookHandler(t *testing.T) {
 	// Known good push
 	push := goodPush()
 
+	// Modify .gopherci.yml
+	pushCfg := goodPush()
+	pushCfg.Commits = []github.PushEventCommit{{Modified: []string{configFilename}}}
+
 	// No go files
 	pushNoGo := goodPush()
 	pushNoGo.Commits = []github.PushEventCommit{{Added: []string{"main.php"}}}
@@ -218,6 +222,10 @@ func TestWebhookHandler(t *testing.T) {
 
 	// Known good PR
 	pr := goodPR()
+
+	// Mock API will respond with .gopherci.yml
+	prCfg := goodPR()
+	prCfg.Number = github.Int(3)
 
 	// Mock API will respond with no go files
 	prNoGo := goodPR()
@@ -238,9 +246,11 @@ func TestWebhookHandler(t *testing.T) {
 		wantCode int // http status code we want the response to be
 	}{
 		{push, "push", true, http.StatusOK},
+		{pushCfg, "push", true, http.StatusOK},
 		{pushNoGo, "push", false, http.StatusOK},
 		{pushNoInstall, "push", false, http.StatusOK},
 		{pr, "pull_request", true, http.StatusOK},
+		{prCfg, "pull_request", true, http.StatusOK},
 		{prNoGo, "pull_request", false, http.StatusOK},
 		{prNoInstall, "pull_request", false, http.StatusOK},
 		{prInvalidAction, "pull_request", false, http.StatusOK},
@@ -259,6 +269,10 @@ func TestWebhookHandler(t *testing.T) {
 			fmt.Fprintln(w, "{}")
 		case "/repos/owner/repo/pulls/2/files?per_page=100":
 			file := github.CommitFile{Filename: github.String("main.go")}
+			js, _ := json.Marshal([]*github.CommitFile{&file})
+			fmt.Fprintln(w, string(js))
+		case "/repos/owner/repo/pulls/3/files?per_page=100":
+			file := github.CommitFile{Filename: github.String(configFilename)}
 			js, _ := json.Marshal([]*github.CommitFile{&file})
 			fmt.Fprintln(w, string(js))
 		case "/repos/owner/repo/pulls/4/files?per_page=100":
