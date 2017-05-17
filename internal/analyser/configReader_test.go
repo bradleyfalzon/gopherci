@@ -58,7 +58,10 @@ func TestYAMLConfig_unmarshalError(t *testing.T) {
 }
 
 func TestYAMLConfig(t *testing.T) {
-	contents := []byte(`# .gopherci.yml config`)
+	contents := []byte(`# .gopherci.yml config
+apt_packages:
+    - package1
+`)
 	exec := &mockAnalyser{
 		ExecuteOut: [][]byte{contents},
 		ExecuteErr: []error{nil},
@@ -72,7 +75,10 @@ func TestYAMLConfig(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	want := RepoConfig{Tools: reader.Tools}
+	want := RepoConfig{
+		APTPackages: []string{"package1"},
+		Tools:       reader.Tools,
+	}
 
 	if !reflect.DeepEqual(have, want) {
 		t.Errorf("\nhave: %v\nwant: %v", have, want)

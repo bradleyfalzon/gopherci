@@ -11,7 +11,8 @@ import (
 
 // RepoConfig contains the analyser configuration for the repository.
 type RepoConfig struct {
-	Tools []db.Tool
+	APTPackages []string `yaml:"apt_packages"`
+	Tools       []db.Tool
 }
 
 // A ConfigReader returns a repository's configuration.

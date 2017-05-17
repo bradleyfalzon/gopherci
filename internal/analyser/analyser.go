@@ -95,6 +95,11 @@ func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, configReader
 		return errors.WithMessage(err, "could not configure repository")
 	}
 
+	// install packages
+	if err := installAPTPackages(ctx, exec, repoConfig.APTPackages); err != nil {
+		return errors.WithMessage(err, "could not install packages")
+	}
+
 	// create a unified diff for use by revgrep
 	patch, err := getPatch(ctx, exec, config.BaseRef, config.HeadRef)
 	if err != nil {
@@ -206,4 +211,16 @@ func getPatch(ctx context.Context, exec Executer, baseRef, headRef string) ([]by
 		}
 	}
 	return patch, nil
+}
+
+// installAptPackages install packages using apt package manager, it expects
+// apt-get update to have already been executed. Can be called with 0 or more
+// packages.
+func installAPTPackages(ctx context.Context, exec Executer, packages []string) error {
+	if len(packages) == 0 {
+		return nil
+	}
+	args := append([]string{"apt-get", "install", "-y"}, packages...)
+	_, err := exec.Execute(ctx, args)
+	return errors.Wrapf(err, "could not install %d apt_packages", len(packages))
 }

@@ -68,6 +68,7 @@ index 0000000..6362395
 
 	analyser := &mockAnalyser{
 		ExecuteOut: [][]byte{
+			{},   // installAPTPackages
 			diff, // git diff
 			{},   // install-deps.sh
 			[]byte(`/go/src/gopherci`),                   // pwd
@@ -79,6 +80,7 @@ index 0000000..6362395
 			[]byte("file is generated"),                  // isFileGenerated
 		},
 		ExecuteErr: []error{
+			nil, // installAPTPackages
 			nil, // git diff
 			nil, // install-deps.sh
 			nil, // pwd
@@ -96,6 +98,7 @@ index 0000000..6362395
 	cloner := &mockCloner{}
 	configReader := &mockConfig{
 		RepoConfig{
+			APTPackages: []string{"package1"},
 			Tools: []db.Tool{
 				{ID: 1, Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
 				{ID: 2, Name: "Name2", Path: "tool2"},
@@ -128,6 +131,7 @@ index 0000000..6362395
 	}
 
 	expectedArgs := [][]string{
+		{"apt-get", "install", "-y", "package1"},
 		{"git", "diff", fmt.Sprintf("%s...%v", cfg.BaseRef, cfg.HeadRef)},
 		{"install-deps.sh"},
 		{"pwd"},
@@ -204,5 +208,38 @@ func TestGetPatch_diffError(t *testing.T) {
 
 	if !reflect.DeepEqual(patch, wantPatch) {
 		t.Errorf("unexpected patch\nhave %v\nwant %v", patch, wantPatch)
+	}
+}
+
+func TestInstallAPTPackages(t *testing.T) {
+	tests := []struct {
+		packages []string
+		args     []string
+	}{
+		{[]string{}, nil},
+		{[]string{"package1"}, []string{"apt-get", "install", "-y", "package1"}},
+		{[]string{"package1", "package2"}, []string{"apt-get", "install", "-y", "package1", "package2"}},
+	}
+
+	for _, test := range tests {
+		analyser := &mockAnalyser{
+			ExecuteOut: [][]byte{{}},
+			ExecuteErr: []error{nil},
+		}
+
+		err := installAPTPackages(context.Background(), analyser, test.packages)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if test.args == nil {
+			if len(analyser.Executed) > 0 {
+				t.Errorf("expected no execution, have: %v", analyser.Executed)
+			}
+		} else {
+			if !reflect.DeepEqual(test.args, analyser.Executed[0]) {
+				t.Errorf("\nhave: %v\nwant: %v", test.args, analyser.Executed[0])
+			}
+		}
 	}
 }
