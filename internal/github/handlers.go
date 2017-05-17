@@ -372,7 +372,11 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		GoSrcPath: cfg.goSrcPath,
 	}
 
-	err = analyser.Analyse(ctx, g.analyser, cfg.cloner, tools, acfg, analysis)
+	configReader := &analyser.YAMLConfig{
+		Tools: tools,
+	}
+
+	err = analyser.Analyse(ctx, g.analyser, cfg.cloner, configReader, acfg, analysis)
 	if err != nil {
 		return errors.Wrap(err, "could not run analyser")
 	}

@@ -42,16 +42,20 @@ func (c *mockCloner) Clone(context.Context, Executer) error {
 	return nil
 }
 
+type mockConfig struct {
+	RepoConfig RepoConfig
+}
+
+var _ ConfigReader = &mockConfig{}
+
+func (c *mockConfig) Read(context.Context, Executer) (RepoConfig, error) {
+	return c.RepoConfig, nil
+}
+
 func TestAnalyse(t *testing.T) {
 	cfg := Config{
 		BaseRef: "base-branch",
 		HeadRef: "head-branch",
-	}
-
-	tools := []db.Tool{
-		{ID: 1, Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
-		{ID: 2, Name: "Name2", Path: "tool2"},
-		{ID: 3, Name: "Name2", Path: "tool3"},
 	}
 
 	diff := []byte(`diff --git a/subdir/main.go b/subdir/main.go
@@ -90,8 +94,17 @@ index 0000000..6362395
 	mockDB := db.NewMockDB()
 	analysis, _ := mockDB.StartAnalysis(1, 2)
 	cloner := &mockCloner{}
+	configReader := &mockConfig{
+		RepoConfig{
+			Tools: []db.Tool{
+				{ID: 1, Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
+				{ID: 2, Name: "Name2", Path: "tool2"},
+				{ID: 3, Name: "Name2", Path: "tool3"},
+			},
+		},
+	}
 
-	err := Analyse(context.Background(), analyser, cloner, tools, cfg, analysis)
+	err := Analyse(context.Background(), analyser, cloner, configReader, cfg, analysis)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}

@@ -66,7 +66,7 @@ func (e *NonZeroError) Error() string {
 // Analyse downloads a repository set in config in an environment provided by
 // analyser, running the series of tools. Writes results to provided analysis,
 // or an error. The repository is expected to contain at least one Go package.
-func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, tools []db.Tool, config Config, analysis *db.Analysis) error {
+func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, configReader ConfigReader, config Config, analysis *db.Analysis) error {
 	start := time.Now()
 	defer func() {
 		analysis.TotalDuration = db.Duration(time.Since(start))
@@ -88,6 +88,12 @@ func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, tools []db.T
 		return errors.WithMessage(err, "could not clone")
 	}
 	analysis.CloneDuration = db.Duration(time.Since(deltaStart))
+
+	// read repository's configuration
+	repoConfig, err := configReader.Read(ctx, exec)
+	if err != nil {
+		return errors.WithMessage(err, "could not configure repository")
+	}
 
 	// create a unified diff for use by revgrep
 	patch, err := getPatch(ctx, exec, config.BaseRef, config.HeadRef)
@@ -115,7 +121,7 @@ func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, tools []db.T
 	}
 	pwd := string(bytes.TrimSpace(out))
 
-	for _, tool := range tools {
+	for _, tool := range repoConfig.Tools {
 		deltaStart = time.Now()
 		args := []string{tool.Path}
 		for _, arg := range strings.Fields(tool.Args) {
