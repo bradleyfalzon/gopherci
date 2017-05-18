@@ -42,16 +42,20 @@ func (c *mockCloner) Clone(context.Context, Executer) error {
 	return nil
 }
 
+type mockConfig struct {
+	RepoConfig RepoConfig
+}
+
+var _ ConfigReader = &mockConfig{}
+
+func (c *mockConfig) Read(context.Context, Executer) (RepoConfig, error) {
+	return c.RepoConfig, nil
+}
+
 func TestAnalyse(t *testing.T) {
 	cfg := Config{
 		BaseRef: "base-branch",
 		HeadRef: "head-branch",
-	}
-
-	tools := []db.Tool{
-		{ID: 1, Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
-		{ID: 2, Name: "Name2", Path: "tool2"},
-		{ID: 3, Name: "Name2", Path: "tool3"},
 	}
 
 	diff := []byte(`diff --git a/subdir/main.go b/subdir/main.go
@@ -64,6 +68,7 @@ index 0000000..6362395
 
 	analyser := &mockAnalyser{
 		ExecuteOut: [][]byte{
+			{},   // installAPTPackages
 			diff, // git diff
 			{},   // install-deps.sh
 			[]byte(`/go/src/gopherci`),                   // pwd
@@ -75,6 +80,7 @@ index 0000000..6362395
 			[]byte("file is generated"),                  // isFileGenerated
 		},
 		ExecuteErr: []error{
+			nil, // installAPTPackages
 			nil, // git diff
 			nil, // install-deps.sh
 			nil, // pwd
@@ -90,8 +96,18 @@ index 0000000..6362395
 	mockDB := db.NewMockDB()
 	analysis, _ := mockDB.StartAnalysis(1, 2)
 	cloner := &mockCloner{}
+	configReader := &mockConfig{
+		RepoConfig{
+			APTPackages: []string{"package1"},
+			Tools: []db.Tool{
+				{ID: 1, Name: "Name1", Path: "tool1", Args: "-flag %BASE_BRANCH% ./..."},
+				{ID: 2, Name: "Name2", Path: "tool2"},
+				{ID: 3, Name: "Name2", Path: "tool3"},
+			},
+		},
+	}
 
-	err := Analyse(context.Background(), analyser, cloner, tools, cfg, analysis)
+	err := Analyse(context.Background(), analyser, cloner, configReader, cfg, analysis)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
@@ -115,6 +131,7 @@ index 0000000..6362395
 	}
 
 	expectedArgs := [][]string{
+		{"apt-get", "install", "-y", "package1"},
 		{"git", "diff", fmt.Sprintf("%s...%v", cfg.BaseRef, cfg.HeadRef)},
 		{"install-deps.sh"},
 		{"pwd"},
@@ -191,5 +208,38 @@ func TestGetPatch_diffError(t *testing.T) {
 
 	if !reflect.DeepEqual(patch, wantPatch) {
 		t.Errorf("unexpected patch\nhave %v\nwant %v", patch, wantPatch)
+	}
+}
+
+func TestInstallAPTPackages(t *testing.T) {
+	tests := []struct {
+		packages []string
+		args     []string
+	}{
+		{[]string{}, nil},
+		{[]string{"package1"}, []string{"apt-get", "install", "-y", "package1"}},
+		{[]string{"package1", "package2"}, []string{"apt-get", "install", "-y", "package1", "package2"}},
+	}
+
+	for _, test := range tests {
+		analyser := &mockAnalyser{
+			ExecuteOut: [][]byte{{}},
+			ExecuteErr: []error{nil},
+		}
+
+		err := installAPTPackages(context.Background(), analyser, test.packages)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if test.args == nil {
+			if len(analyser.Executed) > 0 {
+				t.Errorf("expected no execution, have: %v", analyser.Executed)
+			}
+		} else {
+			if !reflect.DeepEqual(test.args, analyser.Executed[0]) {
+				t.Errorf("\nhave: %v\nwant: %v", test.args, analyser.Executed[0])
+			}
+		}
 	}
 }

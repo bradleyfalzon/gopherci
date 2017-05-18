@@ -341,3 +341,16 @@ func TestMissingBeforeRef(t *testing.T) {
 
 	it.WaitForSuccess("master", "ci/gopherci/push")
 }
+
+// TestAPTPackagesCGO tests that cgo dependencies are installed via apt-get.
+func TestAPTPackagesCGO(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	it := NewIntegrationTest(ctx, t)
+	defer it.Close()
+
+	it.Exec("apt-cgo.sh", "aptcgo")
+
+	it.WaitForSuccess("aptcgo", "ci/gopherci/push")
+}

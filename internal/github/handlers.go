@@ -162,6 +162,8 @@ func checkPRAction(e *github.PullRequestEvent) error {
 	return nil
 }
 
+const configFilename = ".gopherci.yml"
+
 // checkPRAffectsGo returns true if a pull request modifies, adds or removes
 // Go files, else returns error if an error occurs.
 func checkPRAffectsGo(ctx context.Context, installation *Installation, owner, repo string, number int) (bool, error) {
@@ -172,7 +174,7 @@ func checkPRAffectsGo(ctx context.Context, installation *Installation, owner, re
 			return false, errors.Wrap(err, "could not list files")
 		}
 		for _, file := range files {
-			if hasGoExtension(*file.Filename) {
+			if hasGoExtension(*file.Filename) || *file.Filename == configFilename {
 				return true, nil
 			}
 		}
@@ -188,7 +190,7 @@ func checkPRAffectsGo(ctx context.Context, installation *Installation, owner, re
 func checkPushAffectsGo(event *github.PushEvent) bool {
 	hasGoFile := func(files []string) bool {
 		for _, filename := range files {
-			if hasGoExtension(filename) {
+			if hasGoExtension(filename) || filename == configFilename {
 				return true
 			}
 		}
@@ -372,7 +374,11 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		GoSrcPath: cfg.goSrcPath,
 	}
 
-	err = analyser.Analyse(ctx, g.analyser, cfg.cloner, tools, acfg, analysis)
+	configReader := &analyser.YAMLConfig{
+		Tools: tools,
+	}
+
+	err = analyser.Analyse(ctx, g.analyser, cfg.cloner, configReader, acfg, analysis)
 	if err != nil {
 		return errors.Wrap(err, "could not run analyser")
 	}

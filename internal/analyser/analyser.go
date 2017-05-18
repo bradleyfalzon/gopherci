@@ -66,7 +66,7 @@ func (e *NonZeroError) Error() string {
 // Analyse downloads a repository set in config in an environment provided by
 // analyser, running the series of tools. Writes results to provided analysis,
 // or an error. The repository is expected to contain at least one Go package.
-func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, tools []db.Tool, config Config, analysis *db.Analysis) error {
+func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, configReader ConfigReader, config Config, analysis *db.Analysis) error {
 	start := time.Now()
 	defer func() {
 		analysis.TotalDuration = db.Duration(time.Since(start))
@@ -88,6 +88,17 @@ func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, tools []db.T
 		return errors.WithMessage(err, "could not clone")
 	}
 	analysis.CloneDuration = db.Duration(time.Since(deltaStart))
+
+	// read repository's configuration
+	repoConfig, err := configReader.Read(ctx, exec)
+	if err != nil {
+		return errors.WithMessage(err, "could not configure repository")
+	}
+
+	// install packages
+	if err := installAPTPackages(ctx, exec, repoConfig.APTPackages); err != nil {
+		return errors.WithMessage(err, "could not install packages")
+	}
 
 	// create a unified diff for use by revgrep
 	patch, err := getPatch(ctx, exec, config.BaseRef, config.HeadRef)
@@ -115,7 +126,7 @@ func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, tools []db.T
 	}
 	pwd := string(bytes.TrimSpace(out))
 
-	for _, tool := range tools {
+	for _, tool := range repoConfig.Tools {
 		deltaStart = time.Now()
 		args := []string{tool.Path}
 		for _, arg := range strings.Fields(tool.Args) {
@@ -200,4 +211,16 @@ func getPatch(ctx context.Context, exec Executer, baseRef, headRef string) ([]by
 		}
 	}
 	return patch, nil
+}
+
+// installAptPackages install packages using apt package manager, it expects
+// apt-get update to have already been executed. Can be called with 0 or more
+// packages.
+func installAPTPackages(ctx context.Context, exec Executer, packages []string) error {
+	if len(packages) == 0 {
+		return nil
+	}
+	args := append([]string{"apt-get", "install", "-y"}, packages...)
+	_, err := exec.Execute(ctx, args)
+	return errors.Wrapf(err, "could not install %d apt_packages", len(packages))
 }
