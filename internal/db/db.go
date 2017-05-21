@@ -19,8 +19,10 @@ type DB interface {
 	// ListTools returns all tools. Returns nil if no tools were found, error will
 	// be non-nil if an error occurs.
 	ListTools() ([]Tool, error)
-	// StartAnalysis records a new analysis.
-	StartAnalysis(ghInstallationID, repositoryID int) (*Analysis, error)
+	// StartAnalysis records a new analysis. RequestNumber is a GitHub Pull Request
+	// ID (or Merge Request) and may be 0 for none, if 0 commitFrom and commitTo
+	// must be set.
+	StartAnalysis(ghInstallationID, repositoryID int, commitFrom, commitTo string, requestNumber int) (*Analysis, error)
 	// FinishAnalysis marks a status as finished.
 	FinishAnalysis(analysisID int, status AnalysisStatus, analysis *Analysis) error
 	// GetAnalysis returns an analysis for a given analysisID, returns nil if no

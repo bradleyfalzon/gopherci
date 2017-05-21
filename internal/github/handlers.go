@@ -328,16 +328,12 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	}
 
 	// Record start of analysis
-	analysis, err := g.db.StartAnalysis(install.ID, cfg.repositoryID)
+	analysis, err := g.db.StartAnalysis(install.ID, cfg.repositoryID, cfg.commitFrom, cfg.commitTo, cfg.pr)
 	if err != nil {
 		return errors.Wrap(err, "error starting analysis")
 	}
 	log.Println("analysisID:", analysis.ID)
 	analysisURL := analysis.HTMLURL(g.gciBaseURL)
-
-	analysis.CommitFrom = cfg.commitFrom
-	analysis.CommitTo = cfg.commitTo
-	analysis.RequestNumber = cfg.pr
 
 	// Set the CI status API to pending
 	err = install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStatePending, "In progress", analysisURL)

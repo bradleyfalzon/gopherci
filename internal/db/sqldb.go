@@ -77,14 +77,26 @@ func (db *SQLDB) ListTools() ([]Tool, error) {
 }
 
 // StartAnalysis implements the DB interface.
-func (db *SQLDB) StartAnalysis(ghInstallationID, repositoryID int) (*Analysis, error) {
+func (db *SQLDB) StartAnalysis(ghInstallationID, repositoryID int, commitFrom, commitTo string, requestNumber int) (*Analysis, error) {
 	analysis := NewAnalysis()
 	result, err := db.sqlx.Exec("INSERT INTO analysis (gh_installation_id, repository_id) VALUES (?, ?)", ghInstallationID, repositoryID)
 	if err != nil {
 		return nil, err
 	}
 	analysisID, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
 	analysis.ID = int(analysisID)
+	analysis.CommitFrom = commitFrom
+	analysis.CommitTo = commitTo
+	analysis.RequestNumber = requestNumber
+
+	if analysis.IsPush() {
+		_, err = db.sqlx.Exec("UPDATE analysis SET commit_from = ?, commit_to = ? WHERE id = ?", analysis.CommitFrom, analysis.CommitTo, analysis.ID)
+	} else {
+		_, err = db.sqlx.Exec("UPDATE analysis SET request_number = ? WHERE id = ?", analysis.RequestNumber, analysis.ID)
+	}
 	return analysis, err
 }
 
@@ -97,15 +109,6 @@ func (db *SQLDB) FinishAnalysis(analysisID int, status AnalysisStatus, analysis 
 	_, err := db.sqlx.Exec("UPDATE analysis SET status = ?, clone_duration = SEC_TO_TIME(?), deps_duration = SEC_TO_TIME(?), total_duration = SEC_TO_TIME(?) WHERE id = ?",
 		string(status), analysis.CloneDuration, analysis.DepsDuration, analysis.TotalDuration, analysisID,
 	)
-	if err != nil {
-		return err
-	}
-
-	if analysis.IsPush() {
-		_, err = db.sqlx.Exec("UPDATE analysis SET commit_from = ?, commit_to = ? WHERE id = ?", analysis.CommitFrom, analysis.CommitTo, analysisID)
-	} else {
-		_, err = db.sqlx.Exec("UPDATE analysis SET request_number = ? WHERE id = ?", analysis.RequestNumber, analysisID)
-	}
 	if err != nil {
 		return err
 	}
