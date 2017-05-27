@@ -232,6 +232,11 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 			HeadURL: *e.Repo.CloneURL,
 			HeadRef: *e.After,
 		},
+		refReader: &analyser.FixedRef{
+			// baseRef is after~numCommits to better handle forced pushes, as a
+			// forced push has the before ref of a commit that's been overwritten.
+			BaseRef: fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
+		},
 		installationID:  *e.Installation.ID,
 		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/push",
@@ -241,11 +246,8 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 		// used in api request
 		commitFrom: fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
 		commitTo:   *e.After,
-		// baseRef is after~numCommits to better handle forced pushes, as a
-		// forced push has the before ref of a commit that's been overwritten.
-		baseRef:   fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
-		headRef:   *e.After,
-		goSrcPath: stripScheme(*e.Repo.HTMLURL),
+		headRef:    *e.After,
+		goSrcPath:  stripScheme(*e.Repo.HTMLURL),
 	}
 }
 
@@ -259,11 +261,11 @@ func PullRequestConfig(e *github.PullRequestEvent) AnalyseConfig {
 			HeadURL: *pr.Head.Repo.CloneURL,
 			HeadRef: *pr.Head.Ref,
 		},
+		refReader:       &analyser.MergeBase{},
 		installationID:  *e.Installation.ID,
 		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/pr",
 		statusesURL:     *pr.StatusesURL,
-		baseRef:         "FETCH_HEAD",
 		headRef:         *pr.Head.Ref,
 		goSrcPath:       stripScheme(*pr.Base.Repo.HTMLURL),
 		owner:           *pr.Base.Repo.Owner.Login,
@@ -277,6 +279,7 @@ func PullRequestConfig(e *github.PullRequestEvent) AnalyseConfig {
 // are required, unless otherwise stated.
 type AnalyseConfig struct {
 	cloner          analyser.Cloner
+	refReader       analyser.RefReader
 	installationID  int
 	repositoryID    int
 	statusesContext string
@@ -290,7 +293,6 @@ type AnalyseConfig struct {
 	pr int
 
 	// for analyser.
-	baseRef   string // ref can be branch for pr or sha~numCommits for push.
 	headRef   string // ref can be branch for pr or sha (after) for push.
 	goSrcPath string
 
@@ -369,7 +371,6 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 
 	// Analyse
 	acfg := analyser.Config{
-		BaseRef:   cfg.baseRef,
 		HeadRef:   cfg.headRef,
 		GoSrcPath: cfg.goSrcPath,
 	}
@@ -378,7 +379,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		Tools: tools,
 	}
 
-	err = analyser.Analyse(ctx, g.analyser, cfg.cloner, configReader, acfg, analysis)
+	err = analyser.Analyse(ctx, g.analyser, cfg.cloner, configReader, cfg.refReader, acfg, analysis)
 	if err != nil {
 		return errors.Wrap(err, "could not run analyser")
 	}

@@ -54,7 +54,6 @@ func (c *mockConfig) Read(context.Context, Executer) (RepoConfig, error) {
 
 func TestAnalyse(t *testing.T) {
 	cfg := Config{
-		BaseRef: "base-branch",
 		HeadRef: "head-branch",
 	}
 
@@ -96,6 +95,7 @@ index 0000000..6362395
 	mockDB := db.NewMockDB()
 	analysis, _ := mockDB.StartAnalysis(1, 2)
 	cloner := &mockCloner{}
+	refReader := &FixedRef{BaseRef: "base-ref"}
 	configReader := &mockConfig{
 		RepoConfig{
 			APTPackages: []string{"package1"},
@@ -107,7 +107,7 @@ index 0000000..6362395
 		},
 	}
 
-	err := Analyse(context.Background(), analyser, cloner, configReader, cfg, analysis)
+	err := Analyse(context.Background(), analyser, cloner, configReader, refReader, cfg, analysis)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
@@ -132,10 +132,10 @@ index 0000000..6362395
 
 	expectedArgs := [][]string{
 		{"apt-get", "install", "-y", "package1"},
-		{"git", "diff", fmt.Sprintf("%s...%v", cfg.BaseRef, cfg.HeadRef)},
+		{"git", "diff", fmt.Sprintf("%s...%v", refReader.BaseRef, cfg.HeadRef)},
 		{"install-deps.sh"},
 		{"pwd"},
-		{"tool1", "-flag", cfg.BaseRef, "./..."},
+		{"tool1", "-flag", refReader.BaseRef, "./..."},
 		{"isFileGenerated", "/go/src/gopherci", "main.go"},
 		{"tool2"},
 		{"isFileGenerated", "/go/src/gopherci", "main.go"},

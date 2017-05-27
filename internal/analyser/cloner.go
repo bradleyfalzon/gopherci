@@ -14,8 +14,7 @@ type Cloner interface {
 }
 
 // PullRequestCloner is a Cloner for handling cloning the HeadURL at HeadRef
-// and also fetches BaseURL at BaseRef. When using this, the new base ref
-// should be set to FETCH_HEAD.
+// and also fetches BaseURL at BaseRef.
 type PullRequestCloner struct {
 	HeadURL string
 	HeadRef string
@@ -27,7 +26,13 @@ var _ Cloner = &PullRequestCloner{}
 
 // Clone implements the Cloner interface.
 func (c *PullRequestCloner) Clone(ctx context.Context, exec Executer) error {
-	args := []string{"git", "clone", "--depth", "1", "--branch", c.HeadRef, "--single-branch", c.HeadURL, "."}
+	// We clone a limited, but large, depth because RefReader requires a
+	// history to find the common ancestor when using git merge-base. If the
+	// depth is too small, we might not find the ancestor, if the depth is too
+	// large we're fetching too much. Definitely err on the side to too much.
+	const depth = "1000"
+
+	args := []string{"git", "clone", "--depth", depth, "--branch", c.HeadRef, "--single-branch", c.HeadURL, "."}
 	out, err := exec.Execute(ctx, args)
 	if err != nil {
 		return errors.WithMessage(err, fmt.Sprintf("could not execute %v: %q", args, out))
@@ -35,7 +40,7 @@ func (c *PullRequestCloner) Clone(ctx context.Context, exec Executer) error {
 
 	// This is a PR, fetch base as some tools (apicompat) needs to
 	// reference it.
-	args = []string{"git", "fetch", "--depth", "1", c.BaseURL, c.BaseRef}
+	args = []string{"git", "fetch", "--depth", depth, c.BaseURL, c.BaseRef}
 	out, err = exec.Execute(ctx, args)
 	if err != nil {
 		return errors.WithMessage(err, fmt.Sprintf("could not execute %v: %q", args, out))

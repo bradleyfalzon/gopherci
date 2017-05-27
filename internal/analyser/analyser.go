@@ -31,9 +31,6 @@ type Analyser interface {
 // Config hold configuration options for use in analyser. All options
 // are required.
 type Config struct {
-	// BaseRef is the reference we want to merge into, for EventTypePullRequest
-	// it's likely the branch, for EventTypePush it's a sha~number.
-	BaseRef string
 	// HeadRef is the name of the reference containing changes.
 	HeadRef string
 	// GoSrcPath is the repository's path when placed in $GOPATH/src.
@@ -66,7 +63,7 @@ func (e *NonZeroError) Error() string {
 // Analyse downloads a repository set in config in an environment provided by
 // analyser, running the series of tools. Writes results to provided analysis,
 // or an error. The repository is expected to contain at least one Go package.
-func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, configReader ConfigReader, config Config, analysis *db.Analysis) error {
+func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, configReader ConfigReader, refReader RefReader, config Config, analysis *db.Analysis) error {
 	start := time.Now()
 	defer func() {
 		analysis.TotalDuration = db.Duration(time.Since(start))
@@ -100,8 +97,14 @@ func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, configReader
 		return errors.WithMessage(err, "could not install packages")
 	}
 
+	// get the base ref
+	baseRef, err := refReader.Base(ctx, exec)
+	if err != nil {
+		return errors.Wrap(err, "could not get base ref")
+	}
+
 	// create a unified diff for use by revgrep
-	patch, err := getPatch(ctx, exec, config.BaseRef, config.HeadRef)
+	patch, err := getPatch(ctx, exec, baseRef, config.HeadRef)
 	if err != nil {
 		return errors.Wrap(err, "could not get patch")
 	}
@@ -133,7 +136,7 @@ func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, configReader
 			switch arg {
 			case ArgBaseBranch: // TODO change to ArgBaseRef
 				// Tool wants the base ref name as a flag
-				arg = config.BaseRef
+				arg = baseRef
 			}
 			args = append(args, arg)
 		}

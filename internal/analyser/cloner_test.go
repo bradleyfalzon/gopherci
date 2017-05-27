@@ -20,8 +20,8 @@ func TestPullRequestCloner(t *testing.T) {
 		ExecuteErr: []error{nil, nil},
 	}
 	passArgs := [][]string{
-		{"git", "clone", "--depth", "1", "--branch", cloner.HeadRef, "--single-branch", cloner.HeadURL, "."},
-		{"git", "fetch", "--depth", "1", cloner.BaseURL, cloner.BaseRef},
+		{"git", "clone", "--depth", "1000", "--branch", cloner.HeadRef, "--single-branch", cloner.HeadURL, "."},
+		{"git", "fetch", "--depth", "1000", cloner.BaseURL, cloner.BaseRef},
 	}
 
 	// clone failed
@@ -29,14 +29,14 @@ func TestPullRequestCloner(t *testing.T) {
 		ExecuteOut: [][]byte{{}},
 		ExecuteErr: []error{errors.New("clone fail")},
 	}
-	cloneFailErr := errors.New(`could not execute [git clone --depth 1 --branch head-ref --single-branch head-url .]: "": clone fail`)
+	cloneFailErr := errors.New(`could not execute [git clone --depth 1000 --branch head-ref --single-branch head-url .]: "": clone fail`)
 
 	// fetch failed
 	fetchFailExec := &mockAnalyser{
 		ExecuteOut: [][]byte{{}, {}},
 		ExecuteErr: []error{nil, errors.New("fetch fail")},
 	}
-	fetchFailErr := errors.New(`could not execute [git fetch --depth 1 base-url base-ref]: "": fetch fail`)
+	fetchFailErr := errors.New(`could not execute [git fetch --depth 1000 base-url base-ref]: "": fetch fail`)
 
 	tests := []struct {
 		executer *mockAnalyser
