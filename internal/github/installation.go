@@ -150,7 +150,9 @@ func (i *Installation) WriteIssues(ctx context.Context, owner, repo string, prNu
 		}
 		_, _, err := i.client.PullRequests.CreateComment(ctx, owner, repo, prNumber, comment)
 		if err != nil {
-			return errors.Wrap(err, "could not post comment")
+			return errors.Wrapf(err, "could not post comment path: %q, position: %v, commitID: %q, body: %q",
+				*comment.Path, *comment.Position, *comment.CommitID, *comment.Body,
+			)
 		}
 	}
 	return nil
