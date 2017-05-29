@@ -91,19 +91,19 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 	// push?), if so, we should just give the template the issues to render.
 	// If no errors, give template nil issues.
 
+	var patches []Patch
 	diffReader, err := vcs.Diff(r.Context(), analysis.RepositoryID, analysis.CommitFrom, analysis.CommitTo, analysis.RequestNumber)
 	if err != nil {
 		log.Printf("error getting diff from VCS for analysisID %v: %v", analysisID, err)
-		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get VCS")
-		return
-	}
-	defer diffReader.Close()
+	} else {
+		defer diffReader.Close()
 
-	patches, err := DiffIssues(r.Context(), diffReader, analysis.Issues())
-	if err != nil {
-		log.Printf("error reading vcs with analysisID %v: %v", analysisID, err)
-		web.errorHandler(w, r, http.StatusInternalServerError, "Could not read VCS")
-		return
+		patches, err = DiffIssues(r.Context(), diffReader, analysis.Issues())
+		if err != nil {
+			log.Printf("error reading vcs with analysisID %v: %v", analysisID, err)
+			web.errorHandler(w, r, http.StatusInternalServerError, "Could not read VCS")
+			return
+		}
 	}
 
 	var page = struct {
