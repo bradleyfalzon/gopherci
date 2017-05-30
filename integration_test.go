@@ -329,7 +329,7 @@ func TestAnalysisView(t *testing.T) {
 }
 
 // TestMissingBeforeBranch tests the case where the before ref does not exist,
-// such as branch tracking different tree or new repository.
+// such as branch tracking different tree.
 func TestMissingBeforeRef(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
@@ -337,7 +337,7 @@ func TestMissingBeforeRef(t *testing.T) {
 	it := NewIntegrationTest(ctx, t)
 	defer it.Close()
 
-	it.Exec("new-go-repository.sh", "master")
+	it.Exec("new-tree.sh", "master")
 
 	it.WaitForSuccess("master", "ci/gopherci/push")
 }

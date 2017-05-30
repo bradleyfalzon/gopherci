@@ -93,7 +93,11 @@ func (db *SQLDB) StartAnalysis(ghInstallationID, repositoryID int, commitFrom, c
 	analysis.RequestNumber = requestNumber
 
 	if analysis.IsPush() {
-		_, err = db.sqlx.Exec("UPDATE analysis SET commit_from = ?, commit_to = ? WHERE id = ?", analysis.CommitFrom, analysis.CommitTo, analysis.ID)
+		if analysis.CommitFrom != "" {
+			_, err = db.sqlx.Exec("UPDATE analysis SET commit_from = ?, commit_to = ? WHERE id = ?", analysis.CommitFrom, analysis.CommitTo, analysis.ID)
+		} else {
+			_, err = db.sqlx.Exec("UPDATE analysis SET commit_to = ? WHERE id = ?", analysis.CommitTo, analysis.ID)
+		}
 	} else {
 		_, err = db.sqlx.Exec("UPDATE analysis SET request_number = ? WHERE id = ?", analysis.RequestNumber, analysis.ID)
 	}
