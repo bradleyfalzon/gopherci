@@ -75,38 +75,37 @@
 	</div>
 </div>
 
-<div class="container issues-cont">
-    <h2>Issues</h2>
-	{{ if not .Patches }}
-		<p class="alert alert-success" role="alert">No issues found!</p>
-	{{ end }}
+<!-- Patches may not be set because of an error getting diffs, or there were no issues -->
+{{ if .Patches }}
+    <div class="container issues-cont">
+        <h2>Issues</h2>
 
-    {{ range .Patches }}
-	<table class="patch">
-        <thead>
-            <tr><th></th><th>{{ .Path }}</th></tr>
-        </thead>
-		<tbody>
-            {{ range .Hunks }}
-                <tr><td class="range"></td><td class="range"> {{ .Range }}</td></tr>
+        {{ range .Patches }}
+        <table class="patch">
+            <thead>
+                <tr><th></th><th>{{ .Path }}</th></tr>
+            </thead>
+            <tbody>
+                {{ range .Hunks }}
+                    <tr><td class="range"></td><td class="range"> {{ .Range }}</td></tr>
 
-                {{ range .Lines }}
-                    <tr class="{{ .ChangeType }}">
-                        <td class="lno">{{ .LineNo }}</td>
-                        <td>{{ .Line }}</td>
-                    </tr>
-                    {{ range .Issues }}
-                        <tr id="issue-{{ .ID }}" class="e">
-                            <td class="lno"></td>
-                            <td>{{ .Issue }}</td>
+                    {{ range .Lines }}
+                        <tr class="{{ .ChangeType }}">
+                            <td class="lno">{{ .LineNo }}</td>
+                            <td>{{ .Line }}</td>
                         </tr>
+                        {{ range .Issues }}
+                            <tr id="issue-{{ .ID }}" class="e">
+                                <td class="lno"></td>
+                                <td>{{ .Issue }}</td>
+                            </tr>
+                        {{ end }}
                     {{ end }}
                 {{ end }}
-            {{ end }}
-		</tbody>
-	</table>
-    {{ end }}
-
-</div>
+            </tbody>
+        </table>
+        {{ end }}
+    </div>
+{{ end }}
 
 {{ template "footer" . }}
