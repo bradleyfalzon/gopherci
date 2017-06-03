@@ -95,8 +95,12 @@ func (it *IntegrationTest) startGopherCI() context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		out, err := exec.CommandContext(ctx, "gopherci").CombinedOutput()
-		it.t.Logf("Gopherci output:\n%s", out)
-		it.t.Logf("Gopherci error: %v", err)
+		if err != nil && err.Error() != "signal: killed" {
+			// gopherci should always return without an error, if it doesn't
+			// write all the output to help debug.
+			it.t.Logf("Gopherci output:\n%s", out)
+			it.t.Logf("Gopherci error: %v", err)
+		}
 	}()
 	time.Sleep(10 * time.Second) // Wait for gopherci to listen on interface.
 	it.t.Log("Started gopherci (this is not rebuilt, ensure you rebuild/install before running to test the latest changes)")
@@ -146,7 +150,7 @@ func (it *IntegrationTest) WaitForSuccess(ref, statusContext string) *github.Rep
 			if *status.Context != statusContext {
 				continue
 			}
-			it.t.Logf("Checking status: %v", *status.State)
+			it.t.Logf("Checking status: %q for ref %q", *status.State, ref)
 
 			switch *status.State {
 			case "success":
@@ -155,7 +159,7 @@ func (it *IntegrationTest) WaitForSuccess(ref, statusContext string) *github.Rep
 				it.t.Fatalf("status %v for ref %v", *status.State, ref)
 			}
 		}
-		time.Sleep(time.Second)
+		time.Sleep(2 * time.Second)
 	}
 	it.t.Fatalf("timeout waiting for status api to be success, failure or error")
 	return nil
