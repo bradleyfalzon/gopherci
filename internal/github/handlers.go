@@ -57,7 +57,7 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch e := event.(type) {
-	case *github.IntegrationInstallationEvent:
+	case *github.InstallationEvent:
 		log.Printf("github: integration event: %v, installation id: %v", *e.Action, *e.Installation.ID)
 		err = g.integrationInstallationEvent(e)
 	case *github.PushEvent:
@@ -209,7 +209,7 @@ func hasGoExtension(filename string) bool {
 	return strings.HasSuffix(filename, ".go")
 }
 
-func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationEvent) error {
+func (g *GitHub) integrationInstallationEvent(e *github.InstallationEvent) error {
 	var err error
 	switch *e.Action {
 	case "created":
