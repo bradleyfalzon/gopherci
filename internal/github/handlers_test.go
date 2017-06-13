@@ -495,7 +495,15 @@ func TestPushConfig(t *testing.T) {
 		headRef:         "abcdef",
 		goSrcPath:       "github.com/owner/repo",
 	}
-	e := &github.PushEvent{
+
+	have := PushConfig(goodPush())
+	if !reflect.DeepEqual(have, want) {
+		t.Errorf("have:\n%+v\nwant:\n%+v", have, want)
+	}
+}
+
+func goodPush() *github.PushEvent {
+	return &github.PushEvent{
 		Installation: &github.Installation{
 			ID: github.Int(1),
 		},
@@ -507,11 +515,17 @@ func TestPushConfig(t *testing.T) {
 		},
 		After:   github.String("abcdef"),
 		Commits: []github.PushEventCommit{{}, {}},
+		Created: github.Bool(false),
 	}
+}
+
+func TestPushConfig_created(t *testing.T) {
+	e := goodPush()
+	e.Created = github.Bool(true)
 
 	have := PushConfig(e)
-	if !reflect.DeepEqual(have, want) {
-		t.Errorf("have:\n%+v\nwant:\n%+v", have, want)
+	if want := ""; have.commitFrom != want {
+		t.Errorf("have: %q, want: %q", have, want)
 	}
 }
 

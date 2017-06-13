@@ -161,10 +161,15 @@ func (i *Installation) WriteIssues(ctx context.Context, owner, repo string, prNu
 // Diff implements the web.VCSReader interface.
 func (i *Installation) Diff(ctx context.Context, repositoryID int, commitFrom, commitTo string, requestNumber int) (io.ReadCloser, error) {
 	var apiURL string
-	if requestNumber == 0 {
-		apiURL = fmt.Sprintf("%s/repositories/%d/compare/%s...%s", i.client.BaseURL.String(), repositoryID, commitFrom, commitTo)
-	} else {
+	switch {
+	case requestNumber != 0:
 		apiURL = fmt.Sprintf("%s/repositories/%d/pulls/%d", i.client.BaseURL.String(), repositoryID, requestNumber)
+	case commitFrom == "":
+		// There doesn't appear to be an API call which returns a diff for the
+		// first commit in a repository.
+		return nil, nil
+	default:
+		apiURL = fmt.Sprintf("%s/repositories/%d/compare/%s...%s", i.client.BaseURL.String(), repositoryID, commitFrom, commitTo)
 	}
 
 	req, err := http.NewRequest("GET", apiURL, nil)

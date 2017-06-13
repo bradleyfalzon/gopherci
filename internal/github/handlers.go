@@ -227,6 +227,14 @@ func (g *GitHub) integrationInstallationEvent(e *github.IntegrationInstallationE
 
 // PushConfig returns an AnalyseConfig for a GitHub Push Event.
 func PushConfig(e *github.PushEvent) AnalyseConfig {
+	// commitFrom is after~numCommits for the same reason as baseRef but
+	// also because first pushes's before is 000000.... which can't be
+	// used in api request
+	commitFrom := fmt.Sprintf("%v~%v", *e.After, len(e.Commits))
+	if e.Created != nil && *e.Created {
+		commitFrom = ""
+	}
+
 	return AnalyseConfig{
 		cloner: &analyser.PushCloner{
 			HeadURL: *e.Repo.CloneURL,
@@ -241,13 +249,10 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/push",
 		statusesURL:     strings.Replace(*e.Repo.StatusesURL, "{sha}", *e.After, -1),
-		// commitFrom is after~numCommits for the same reason as baseRef but
-		// also because first pushes's before is 000000.... which can't be
-		// used in api request
-		commitFrom: fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
-		commitTo:   *e.After,
-		headRef:    *e.After,
-		goSrcPath:  stripScheme(*e.Repo.HTMLURL),
+		commitFrom:      commitFrom,
+		commitTo:        *e.After,
+		headRef:         *e.After,
+		goSrcPath:       stripScheme(*e.Repo.HTMLURL),
 	}
 }
 

@@ -17,7 +17,8 @@ import (
 
 // A VCSReader reads information about a completed analysis.
 type VCSReader interface {
-	// Diff returns a multi file unified diff as a io.ReadCloser, or an error.
+	// Diff returns a multi file unified diff as an io.ReadCloser, return nil
+	// if no diff could be found or returns an error if an error is found.
 	Diff(ctx context.Context, repositoryID int, commitFrom string, commitTo string, requestNumber int) (io.ReadCloser, error)
 }
 
