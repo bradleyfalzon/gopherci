@@ -75,7 +75,10 @@ func NewGCPPubSubQueue(ctx context.Context, projectID, topicName string) (*GCPPu
 	subName := topicName + "-" + defaultSubName
 
 	log.Printf("NewGCPPubSubQueue: creating subscription %q", subName)
-	q.subscription, err = client.CreateSubscription(cxnCtx, subName, q.topic, 0, nil)
+	q.subscription, err = client.CreateSubscription(cxnCtx, subName, pubsub.SubscriptionConfig{
+		Topic:       q.topic,
+		AckDeadline: 0,
+	})
 	if code := grpc.Code(err); code != codes.OK && code != codes.AlreadyExists {
 		return nil, errors.Wrap(err, "NewGCPPubSubQueue: could not create subscription")
 	}
