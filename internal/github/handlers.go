@@ -227,6 +227,14 @@ func (g *GitHub) integrationInstallationEvent(e *github.InstallationEvent) error
 
 // PushConfig returns an AnalyseConfig for a GitHub Push Event.
 func PushConfig(e *github.PushEvent) AnalyseConfig {
+	// commitFrom is after~numCommits for the same reason as baseRef but
+	// also because first pushes's before is 000000.... which can't be
+	// used in api request
+	commitFrom := fmt.Sprintf("%v~%v", *e.After, len(e.Commits))
+	if e.Created != nil && *e.Created {
+		commitFrom = ""
+	}
+
 	return AnalyseConfig{
 		cloner: &analyser.PushCloner{
 			HeadURL: *e.Repo.CloneURL,
@@ -241,13 +249,10 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 		repositoryID:    *e.Repo.ID,
 		statusesContext: "ci/gopherci/push",
 		statusesURL:     strings.Replace(*e.Repo.StatusesURL, "{sha}", *e.After, -1),
-		// commitFrom is after~numCommits for the same reason as baseRef but
-		// also because first pushes's before is 000000.... which can't be
-		// used in api request
-		commitFrom: fmt.Sprintf("%v~%v", *e.After, len(e.Commits)),
-		commitTo:   *e.After,
-		headRef:    *e.After,
-		goSrcPath:  stripScheme(*e.Repo.HTMLURL),
+		commitFrom:      commitFrom,
+		commitTo:        *e.After,
+		headRef:         *e.After,
+		goSrcPath:       stripScheme(*e.Repo.HTMLURL),
 	}
 }
 
@@ -328,16 +333,12 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	}
 
 	// Record start of analysis
-	analysis, err := g.db.StartAnalysis(install.ID, cfg.repositoryID)
+	analysis, err := g.db.StartAnalysis(install.ID, cfg.repositoryID, cfg.commitFrom, cfg.commitTo, cfg.pr)
 	if err != nil {
 		return errors.Wrap(err, "error starting analysis")
 	}
 	log.Println("analysisID:", analysis.ID)
 	analysisURL := analysis.HTMLURL(g.gciBaseURL)
-
-	analysis.CommitFrom = cfg.commitFrom
-	analysis.CommitTo = cfg.commitTo
-	analysis.RequestNumber = cfg.pr
 
 	// Set the CI status API to pending
 	err = install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStatePending, "In progress", analysisURL)

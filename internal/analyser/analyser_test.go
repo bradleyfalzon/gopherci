@@ -93,7 +93,7 @@ index 0000000..6362395
 	}
 
 	mockDB := db.NewMockDB()
-	analysis, _ := mockDB.StartAnalysis(1, 2)
+	analysis, _ := mockDB.StartAnalysis(1, 2, "commitFrom", "commitTo", 0)
 	cloner := &mockCloner{}
 	refReader := &FixedRef{BaseRef: "base-ref"}
 	configReader := &mockConfig{

@@ -91,19 +91,25 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 	// push?), if so, we should just give the template the issues to render.
 	// If no errors, give template nil issues.
 
+	var patches []Patch
 	diffReader, err := vcs.Diff(r.Context(), analysis.RepositoryID, analysis.CommitFrom, analysis.CommitTo, analysis.RequestNumber)
-	if err != nil {
+	switch {
+	case err != nil:
+		// There is one remaining case where this could happen, when a commit
+		// tracks a new tree. The commitFrom is a relative commit, because
+		// when we receive the GitHub event, there's no indication that it's a
+		// new tree. But we can't fetch the diff because there's no history for
+		// this commit so GitHub sends a 404.
 		log.Printf("error getting diff from VCS for analysisID %v: %v", analysisID, err)
-		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get VCS")
-		return
-	}
-	defer diffReader.Close()
+	case diffReader != nil:
+		defer diffReader.Close()
 
-	patches, err := DiffIssues(r.Context(), diffReader, analysis.Issues())
-	if err != nil {
-		log.Printf("error reading vcs with analysisID %v: %v", analysisID, err)
-		web.errorHandler(w, r, http.StatusInternalServerError, "Could not read VCS")
-		return
+		patches, err = DiffIssues(r.Context(), diffReader, analysis.Issues())
+		if err != nil {
+			log.Printf("error reading vcs with analysisID %v: %v", analysisID, err)
+			web.errorHandler(w, r, http.StatusInternalServerError, "Could not read VCS")
+			return
+		}
 	}
 
 	var page = struct {

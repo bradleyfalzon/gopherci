@@ -63,9 +63,12 @@ func (db *MockDB) ListTools() ([]Tool, error) {
 }
 
 // StartAnalysis implements the DB interface.
-func (db *MockDB) StartAnalysis(ghInstallationID, repositoryID int) (*Analysis, error) {
+func (db *MockDB) StartAnalysis(ghInstallationID, repositoryID int, commitFrom, commitTo string, requestNumber int) (*Analysis, error) {
 	analysis := NewAnalysis()
 	analysis.ID = 99
+	analysis.CommitFrom = commitFrom
+	analysis.CommitTo = commitTo
+	analysis.RequestNumber = requestNumber
 	return analysis, nil
 }
 
