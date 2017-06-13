@@ -432,7 +432,7 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 		senderID       = 4
 	)
 
-	event := &github.IntegrationInstallationEvent{
+	event := &github.InstallationEvent{
 		Action: github.String("created"),
 		Installation: &github.Installation{
 			ID: github.Int(installationID),
