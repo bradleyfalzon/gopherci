@@ -9,7 +9,7 @@ import (
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/bradleyfalzon/gopherci/internal/github"
-	"github.com/pressly/chi"
+	"github.com/go-chi/chi"
 )
 
 // Web handles general web/html responses (not API hooks).

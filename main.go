@@ -18,12 +18,12 @@ import (
 	"github.com/bradleyfalzon/gopherci/internal/github"
 	"github.com/bradleyfalzon/gopherci/internal/queue"
 	"github.com/bradleyfalzon/gopherci/internal/web"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	_ "github.com/go-sql-driver/mysql"
 	gh "github.com/google/go-github/github"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
-	"github.com/pressly/chi"
-	"github.com/pressly/chi/middleware"
 	migrate "github.com/rubenv/sql-migrate"
 )
 
@@ -172,9 +172,10 @@ func main() {
 		log.Fatalln("main: error loading web:", err)
 	}
 	workDir, _ := os.Getwd()
-	r.FileServer("/static", http.Dir(filepath.Join(workDir, "internal", "web", "static")))
+	FileServer(r, "/static", http.Dir(filepath.Join(workDir, "internal", "web", "static")))
+
 	r.NotFound(web.NotFoundHandler)
-	r.Get("/analysis/:analysisID", web.AnalysisHandler)
+	r.Get("/analysis/{analysisID}", web.AnalysisHandler)
 
 	// Health checks
 	r.Get("/health-check", HealthCheckHandler)
@@ -190,6 +191,23 @@ func main() {
 	log.Println("main: waiting for queuer to finish")
 	wg.Wait()
 	log.Println("main: exiting gracefully")
+}
+
+// FileServer conveniently sets up a http.FileServer handler to serve
+// static files from a http.FileSystem.
+// https://github.com/go-chi/chi/blob/524a020446146841512dd1639e736422e7af53a4/_examples/fileserver/main.go
+func FileServer(r chi.Router, path string, root http.FileSystem) {
+	fs := http.StripPrefix(path, http.FileServer(root))
+
+	if path != "/" && path[len(path)-1] != '/' {
+		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
+		path += "/"
+	}
+	path += "*"
+
+	r.Get(path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fs.ServeHTTP(w, r)
+	}))
 }
 
 // Queue processor is the callback called by queuer when receiving a job
