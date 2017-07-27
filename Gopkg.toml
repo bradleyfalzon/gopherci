@@ -33,6 +33,10 @@
   name = "github.com/bradleyfalzon/revgrep"
   version = "0.2.0"
 
+[[override]]
+  revision = "v17.05.0-ce"
+  name = "github.com/docker/docker"
+
 [[constraint]]
   branch = "master"
   name = "github.com/fsouza/go-dockerclient"
