@@ -1,5 +1,5 @@
 deps:
-	go get -u -t -v ./...
+	dep ensure
 
 install:
 	go install
