@@ -80,6 +80,13 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	outputs, err := web.db.AnalysisOutputs(analysis.ID)
+	if err != nil {
+		log.Printf("error getting analysis output for analysis ID %v: %v", analysis.ID, err)
+		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get analysis output")
+		return
+	}
+
 	vcs, err := NewVCS(web.gh, analysis)
 	if err != nil {
 		log.Printf("error getting VCS for analysisID %v: %v", analysisID, err)
@@ -116,11 +123,13 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 		Title       string
 		Analysis    *db.Analysis
 		Patches     []Patch
+		Outputs     []db.Output
 		TotalIssues int
 	}{
 		Title:       "Analysis",
 		Analysis:    analysis,
 		Patches:     patches,
+		Outputs:     outputs,
 		TotalIssues: len(analysis.Issues()),
 	}
 

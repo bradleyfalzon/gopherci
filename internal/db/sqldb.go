@@ -236,6 +236,13 @@ LEFT JOIN issues i ON (i.analysis_tool_id = at.id)
 	return analysis, nil
 }
 
+// AnalysisOutputs implements the DB interface.
+func (db *SQLDB) AnalysisOutputs(analysisID int) ([]Output, error) {
+	var tools []Output
+	err := db.sqlx.Select(&tools, "SELECT id, analysis_id, arguments, duration, output FROM outputs WHERE analysis_id = ? ORDER BY id ASC", analysisID)
+	return tools, err
+}
+
 // ExecRecorder implements the DB interface.
 func (db *SQLDB) ExecRecorder(analysisID int, executer Executer) Executer {
 	return &SQLExecuteWriter{
