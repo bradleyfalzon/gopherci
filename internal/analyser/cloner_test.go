@@ -15,7 +15,7 @@ func TestPullRequestCloner(t *testing.T) {
 		BaseURL: "base-url",
 	}
 
-	passExec := &mockAnalyser{
+	passExec := &mockExecuter{
 		ExecuteOut: [][]byte{{}, {}},
 		ExecuteErr: []error{nil, nil},
 	}
@@ -25,21 +25,21 @@ func TestPullRequestCloner(t *testing.T) {
 	}
 
 	// clone failed
-	cloneFailExec := &mockAnalyser{
+	cloneFailExec := &mockExecuter{
 		ExecuteOut: [][]byte{{}},
 		ExecuteErr: []error{errors.New("clone fail")},
 	}
 	cloneFailErr := errors.New(`could not execute [git clone --depth 1000 --branch head-ref --single-branch head-url .]: "": clone fail`)
 
 	// fetch failed
-	fetchFailExec := &mockAnalyser{
+	fetchFailExec := &mockExecuter{
 		ExecuteOut: [][]byte{{}, {}},
 		ExecuteErr: []error{nil, errors.New("fetch fail")},
 	}
 	fetchFailErr := errors.New(`could not execute [git fetch --depth 1000 base-url base-ref]: "": fetch fail`)
 
 	tests := []struct {
-		executer *mockAnalyser
+		executer *mockExecuter
 		wantArgs [][]string // nil to not check for args
 		wantErr  error
 	}{
@@ -66,7 +66,7 @@ func TestPushCloner(t *testing.T) {
 		HeadURL: "head-url",
 	}
 
-	passExec := &mockAnalyser{
+	passExec := &mockExecuter{
 		ExecuteOut: [][]byte{{}, {}},
 		ExecuteErr: []error{nil, nil},
 	}
@@ -76,21 +76,21 @@ func TestPushCloner(t *testing.T) {
 	}
 
 	// clone failed
-	cloneFailExec := &mockAnalyser{
+	cloneFailExec := &mockExecuter{
 		ExecuteOut: [][]byte{{}},
 		ExecuteErr: []error{errors.New("clone fail")},
 	}
 	cloneFailErr := errors.New(`could not execute [git clone head-url .]: "": clone fail`)
 
 	// checkout failed
-	coFailExec := &mockAnalyser{
+	coFailExec := &mockExecuter{
 		ExecuteOut: [][]byte{{}, {}},
 		ExecuteErr: []error{nil, errors.New("checkout fail")},
 	}
 	coFailErr := errors.New(`could not execute [git checkout head-ref]: "": checkout fail`)
 
 	tests := []struct {
-		executer *mockAnalyser
+		executer *mockExecuter
 		wantArgs [][]string // nil to not check for args
 		wantErr  error
 	}{

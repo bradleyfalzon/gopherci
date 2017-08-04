@@ -11,7 +11,7 @@ func TestMergeBase(t *testing.T) {
 
 	refReader := &MergeBase{}
 
-	passExec := &mockAnalyser{
+	passExec := &mockExecuter{
 		ExecuteOut: [][]byte{[]byte("abcdef\n")},
 		ExecuteErr: []error{nil},
 	}
@@ -19,14 +19,14 @@ func TestMergeBase(t *testing.T) {
 		{"git", "merge-base", "FETCH_HEAD", "HEAD"},
 	}
 
-	readerFailExec := &mockAnalyser{
+	readerFailExec := &mockExecuter{
 		ExecuteOut: [][]byte{{}},
 		ExecuteErr: []error{errors.New("git merge-base fail")},
 	}
 	readerFailErr := errors.New(`could not execute [git merge-base FETCH_HEAD HEAD]: "": git merge-base fail`)
 
 	tests := []struct {
-		executer *mockAnalyser
+		executer *mockExecuter
 		wantArgs [][]string // nil to not check for args
 		wantErr  error
 	}{

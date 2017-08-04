@@ -372,15 +372,25 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 
 	// Analyse
 	acfg := analyser.Config{
-		HeadRef:   cfg.headRef,
-		GoSrcPath: cfg.goSrcPath,
+		HeadRef: cfg.headRef,
 	}
 
 	configReader := &analyser.YAMLConfig{
 		Tools: tools,
 	}
 
-	err = analyser.Analyse(ctx, g.analyser, cfg.cloner, configReader, cfg.refReader, acfg, analysis)
+	// Get a new executer/environment to execute in
+	executer, err := g.analyser.NewExecuter(ctx, cfg.goSrcPath)
+	if err != nil {
+		return errors.Wrap(err, "analyser could create new executer")
+	}
+	defer func() {
+		if err := executer.Stop(ctx); err != nil {
+			log.Printf("warning: could not stop executer: %v", err)
+		}
+	}()
+
+	err = analyser.Analyse(ctx, executer, cfg.cloner, configReader, cfg.refReader, acfg, analysis)
 	if err != nil {
 		return errors.Wrap(err, "could not run analyser")
 	}

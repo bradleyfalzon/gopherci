@@ -33,8 +33,6 @@ type Analyser interface {
 type Config struct {
 	// HeadRef is the name of the reference containing changes.
 	HeadRef string
-	// GoSrcPath is the repository's path when placed in $GOPATH/src.
-	GoSrcPath string
 }
 
 // Executer executes a single command in a contained environment.
@@ -61,23 +59,12 @@ func (e *NonZeroError) Error() string {
 }
 
 // Analyse downloads a repository set in config in an environment provided by
-// analyser, running the series of tools. Writes results to provided analysis,
+// exec, running the series of tools. Writes results to provided analysis,
 // or an error. The repository is expected to contain at least one Go package.
-func Analyse(ctx context.Context, analyser Analyser, cloner Cloner, configReader ConfigReader, refReader RefReader, config Config, analysis *db.Analysis) error {
+func Analyse(ctx context.Context, exec Executer, cloner Cloner, configReader ConfigReader, refReader RefReader, config Config, analysis *db.Analysis) error {
 	start := time.Now()
 	defer func() {
 		analysis.TotalDuration = db.Duration(time.Since(start))
-	}()
-
-	// Get a new executer/environment to execute in
-	exec, err := analyser.NewExecuter(ctx, config.GoSrcPath)
-	if err != nil {
-		return errors.Wrap(err, "analyser could create new executer")
-	}
-	defer func() {
-		if err := exec.Stop(ctx); err != nil {
-			log.Printf("warning: could not stop executer: %v", err)
-		}
 	}()
 
 	deltaStart := time.Now() // start of specific analysis
