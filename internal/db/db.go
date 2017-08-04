@@ -28,6 +28,8 @@ type DB interface {
 	// GetAnalysis returns an analysis for a given analysisID, returns nil if no
 	// analysis was found, or an error occurs.
 	GetAnalysis(analysisID int) (*Analysis, error)
+	// ExecRecorder records the analysis in the database by wrapping the executer.
+	ExecRecorder(analysisID int, exec Executer) Executer
 }
 
 // AnalysisStatus represents a status in the analysis table.

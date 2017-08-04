@@ -1,7 +1,14 @@
 package db
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
+	"fmt"
+	"log"
+	"strings"
+	"time"
+	"unicode"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -24,6 +31,24 @@ func NewSQLDB(sqlDB *sql.DB, driverName string) (*SQLDB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+// Cleanup runs background cleanup tasks, such as purging old records.
+func (db *SQLDB) Cleanup(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			_, err := db.sqlx.Exec(`DELETE o FROM outputs o JOIN analysis a ON(o.analysis_id = a.id) WHERE a.created_at < DATE_SUB(NOW(), INTERVAL 30 DAY);`)
+			if err != nil {
+				log.Println("SQLDB cleanup outputs error:", err)
+			}
+		}
+	}
 }
 
 // AddGHInstallation implements the DB interface.
@@ -209,4 +234,85 @@ LEFT JOIN issues i ON (i.analysis_tool_id = at.id)
 	}
 
 	return analysis, nil
+}
+
+// ExecRecorder implements the DB interface.
+func (db *SQLDB) ExecRecorder(analysisID int, executer Executer) Executer {
+	return &SQLExecuteWriter{
+		analysisID: analysisID,
+		executer:   executer,
+		db:         db,
+	}
+}
+
+// WriteExecution writes the results of an execution to the database.
+func (db *SQLDB) WriteExecution(analysisID int, args []string, d time.Duration, output []byte) error {
+	output = bytes.TrimRightFunc(output, unicode.IsSpace) // remove trailing newlines
+	if output == nil {
+		output = []byte{} // output column cannot be null
+	}
+
+	if len(args) >= 2 && args[0] == "git" && args[1] == "diff" {
+		// Never store git diff output, it's used internally for revgrep
+		// only, is usually large and can usually be available elsewhere.
+		output = []byte(fmt.Sprintf("%d bytes suppressed", len(output)))
+	}
+
+	_, err := db.sqlx.Exec("INSERT INTO outputs (analysis_id, arguments, duration, output) VALUES(?, ?, SEC_TO_TIME(?), ?)",
+		analysisID, strings.Join(args, " "), Duration(d), trim(output, maxAnalysisOutput),
+	)
+	return err
+}
+
+// maxAnalysisOutput is the approximate maximum number of bytes stored in the
+// analysis_output table's output column.
+const maxAnalysisOutput = 10240
+
+// trim trims input b to approximately max by keeping the first and last max/2
+// bytes. It may be larger due to n bytes suppressed placeholder message.
+func trim(b []byte, max int) []byte {
+	if len(b) <= max {
+		return b
+	}
+
+	head := max / 2
+	tail := len(b) - max/2
+	return []byte(fmt.Sprintf("%s...%d bytes suppressed...%s", b[:head], len(b)-max, b[tail:]))
+}
+
+// SQLExecuteWriter wraps an Executer and writes the results of execution to db.
+type SQLExecuteWriter struct {
+	analysisID int
+	executer   Executer
+	db         *SQLDB
+}
+
+var _ Executer = &SQLExecuteWriter{}
+
+// Executer is the same interface as analyser.Executer, but due to import cycles
+// must be redefined here.
+type Executer interface {
+	Execute(context.Context, []string) ([]byte, error)
+	Stop(context.Context) error
+}
+
+// Execute implements the Execute interface by running the wrapped executer
+// and storing the results in an SQL database.
+func (e *SQLExecuteWriter) Execute(ctx context.Context, args []string) ([]byte, error) {
+	start := time.Now()
+	out, eerr := e.executer.Execute(ctx, args)
+
+	// Write results to DB
+	werr := e.db.WriteExecution(e.analysisID, args, time.Since(start), out)
+	if werr != nil {
+		// execution error may be nil, if execution was successful, but the
+		// write to the database was not.
+		return out, fmt.Errorf("could not write execution results to db: %v, execution error (may be nil): %v", werr, eerr)
+	}
+	return out, eerr
+}
+
+// Stop implements the Execute interface.
+func (e *SQLExecuteWriter) Stop(ctx context.Context) error {
+	return e.executer.Stop(ctx)
 }

@@ -390,6 +390,9 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		}
 	}()
 
+	// Wrap it with our DB as it wants to record the results.
+	executer = g.db.ExecRecorder(analysis.ID, executer)
+
 	err = analyser.Analyse(ctx, executer, cfg.cloner, configReader, cfg.refReader, acfg, analysis)
 	if err != nil {
 		return errors.Wrap(err, "could not run analyser")
