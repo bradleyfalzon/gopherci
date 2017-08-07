@@ -23,16 +23,18 @@ const (
 // Docker is an Analyser that provides an Executer to build projects inside
 // Docker containers.
 type Docker struct {
-	image  string
-	client *docker.Client
+	image    string
+	client   *docker.Client
+	memLimit int // virtual memory limit in MiB for processes inside container (not container itself).
 }
 
 // Ensure Docker implements Analyser interface.
 var _ Analyser = (*Docker)(nil)
 
 // NewDocker returns a Docker which uses imageName as a container to build
-// projects.
-func NewDocker(imageName string) (*Docker, error) {
+// projects. If memLimit is > 0, limit the amount of memory (MiB) a process
+// inside the container can use, this isn't a limit on the container itself.
+func NewDocker(imageName string, memLimit int) (*Docker, error) {
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
 		return nil, err
@@ -52,7 +54,7 @@ func NewDocker(imageName string) (*Docker, error) {
 	}
 	log.Printf("Docker image %q (%v) created %v", imageName, image.ID, image.Created)
 
-	return &Docker{image: imageName, client: client}, nil
+	return &Docker{image: imageName, client: client, memLimit: memLimit}, nil
 }
 
 // DockerExecuter is an Executer that runs commands in a contained
@@ -61,6 +63,7 @@ type DockerExecuter struct {
 	client    *docker.Client
 	container *docker.Container
 	projPath  string // path to project
+	memLimit  int    // virtual memory limit in MiB for processes
 }
 
 // NewExecuter implements Analyser interface by creating and starting a
@@ -69,6 +72,7 @@ func (d *Docker) NewExecuter(ctx context.Context, goSrcPath string) (Executer, e
 	exec := &DockerExecuter{
 		client:   d.client,
 		projPath: filepath.Join("$GOPATH", "src", goSrcPath),
+		memLimit: d.memLimit,
 	}
 
 	name := fmt.Sprintf("goperci-%d", time.Now().UnixNano())
@@ -107,9 +111,15 @@ func (d *Docker) NewExecuter(ctx context.Context, goSrcPath string) (Executer, e
 // Execute implements the Executer interface and runs commands inside a
 // docker container.
 func (e *DockerExecuter) Execute(ctx context.Context, args []string) ([]byte, error) {
-	// "cd e.projPath; cmd" ignore the errors from cd as the first command
-	// executed is the mkdir
-	cmd := []string{"bash", "-c", fmt.Sprintf(`cd %v; %v`, e.projPath, strings.Join(args, " "))}
+	cmds := []string{
+		// Set memory limit for the running process.
+		fmt.Sprintf("ulimit -v %d", e.memLimit*1024),
+		// "cd e.projPath; cmd" ignore the errors from cd as the first command
+		// executed is the mkdir.
+		fmt.Sprintf("cd %v; %v", e.projPath, strings.Join(args, " ")),
+	}
+
+	cmd := []string{"bash", "-c", strings.Join(cmds, " && ")}
 	createOptions := docker.CreateExecOptions{
 		AttachStdout: true,
 		AttachStderr: true,

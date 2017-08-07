@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,16 +22,18 @@ import (
 // FileSystem is safe to use concurrently, as all directories are created
 // with random file names.
 type FileSystem struct {
-	base string // base is the base dir all projects have in common
+	base     string // base is the base dir all projects have in common
+	memLimit int    // virtual memory limit in MiB for processes
 }
 
 // Ensure FileSystem implements Analyser
 var _ Analyser = (*FileSystem)(nil)
 
 // NewFileSystem returns an FileSystem which uses the path base to build
-// contained environments on the file system.
-func NewFileSystem(base string) (*FileSystem, error) {
-	fs := &FileSystem{base: base}
+// contained environments on the file system. If memLimit is > 0, limit the
+// amount of memory (MiB) a process can use.
+func NewFileSystem(base string, memLimit int) (*FileSystem, error) {
+	fs := &FileSystem{base: base, memLimit: memLimit}
 	if err := unix.Access(base, unix.W_OK); err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("%q is not writable", base))
 	}
@@ -39,7 +42,7 @@ func NewFileSystem(base string) (*FileSystem, error) {
 
 // NewExecuter implements the Analyser interface
 func (fs *FileSystem) NewExecuter(_ context.Context, goSrcPath string) (Executer, error) {
-	e := &FileSystemExecuter{}
+	e := &FileSystemExecuter{memLimit: fs.memLimit}
 	if err := e.mktemp(fs.base, goSrcPath); err != nil {
 		return nil, err
 	}
@@ -51,6 +54,7 @@ func (fs *FileSystem) NewExecuter(_ context.Context, goSrcPath string) (Executer
 type FileSystemExecuter struct {
 	gopath   string // gopath is base/$rand
 	projpath string // projpath is gopath/src/<goSrcPath>
+	memLimit int    // virtual memory limit in MiB for processes
 }
 
 // Ensure FileSystemExecuter implements Executer
@@ -69,7 +73,12 @@ func (e *FileSystemExecuter) mktemp(base, goSrcPath string) error {
 
 // Execute implements the Executer interface
 func (e *FileSystemExecuter) Execute(ctx context.Context, args []string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, args[0])
+	cmds := []string{
+		fmt.Sprintf("ulimit -v %d", e.memLimit*1024),
+		strings.Join(args, " "),
+	}
+	args = []string{"bash", "-c", strings.Join(cmds, " && ")}
+	cmd := exec.CommandContext(ctx, "bash")
 	cmd.Args = args
 	cmd.Dir = e.projpath
 	cmd.Env = []string{"GOPATH=" + e.gopath, "PATH=" + os.Getenv("PATH")}

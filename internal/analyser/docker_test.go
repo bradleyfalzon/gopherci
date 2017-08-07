@@ -2,13 +2,15 @@ package analyser
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"testing"
 )
 
 func TestDocker(t *testing.T) {
-	docker, err := NewDocker(DockerDefaultImage)
+	memLimit := 512
+	docker, err := NewDocker(DockerDefaultImage, memLimit)
 	if err != nil {
 		t.Fatalf("unexpected error initialising docker: %v", err)
 	}
@@ -26,6 +28,15 @@ func TestDocker(t *testing.T) {
 
 	// Ensure current working directory is project path
 	if want := "/go/src/github.com/gopherci/gopherci\n"; want != string(out) {
+		t.Errorf("\nwant %q\nhave %q", want, out)
+	}
+
+	// Ensure correct memory limit
+	out, err = exec.Execute(ctx, []string{"ulimit", "-v"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if want := fmt.Sprintf("%d\n", memLimit*1024); want != string(out) {
 		t.Errorf("\nwant %q\nhave %q", want, out)
 	}
 
