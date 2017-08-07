@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -69,7 +70,11 @@ func (e *FileSystemExecuter) mktemp(base, goSrcPath string) error {
 
 // Execute implements the Executer interface
 func (e *FileSystemExecuter) Execute(ctx context.Context, args []string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, args[0])
+	cmds := []string{
+		strings.Join(args, " "),
+	}
+	args = []string{"bash", "-c", strings.Join(cmds, " && ")}
+	cmd := exec.CommandContext(ctx, "bash")
 	cmd.Args = args
 	cmd.Dir = e.projpath
 	cmd.Env = []string{"GOPATH=" + e.gopath, "PATH=" + os.Getenv("PATH")}

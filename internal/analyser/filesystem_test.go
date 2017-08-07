@@ -23,7 +23,7 @@ func TestFileSystem(t *testing.T) {
 
 	exec, err := fs.NewExecuter(ctx, "github.com/gopherci/gopherci")
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	gopath := exec.(*FileSystemExecuter).gopath
 
@@ -31,7 +31,7 @@ func TestFileSystem(t *testing.T) {
 		t.Errorf("expected %q to exist", gopath)
 	}
 
-	out, err := exec.Execute(ctx, []string{"bash", "-c", "echo $GOPATH $PATH"})
+	out, err := exec.Execute(ctx, []string{"echo $GOPATH $PATH"})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
