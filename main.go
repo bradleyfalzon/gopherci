@@ -92,6 +92,14 @@ func main() {
 		log.Fatalln("could not initialise db:", err)
 	}
 
+	var analyserMemoryLimit int64
+	if os.Getenv("ANALYSER_MEMORY_LIMIT") != "" {
+		analyserMemoryLimit, err = strconv.ParseInt(os.Getenv("ANALYSER_MEMORY_LIMIT"), 10, 32)
+		if err != nil {
+			log.Fatalln("could not parse ANALYSER_MEMORY_LIMIT:", err)
+		}
+	}
+
 	// Analyser
 	log.Printf("Using analyser %q", os.Getenv("ANALYSER"))
 	var analyse analyser.Analyser
@@ -100,7 +108,7 @@ func main() {
 		if os.Getenv("ANALYSER_FILESYSTEM_PATH") == "" {
 			log.Fatalln("ANALYSER_FILESYSTEM_PATH is not set")
 		}
-		analyse, err = analyser.NewFileSystem(os.Getenv("ANALYSER_FILESYSTEM_PATH"))
+		analyse, err = analyser.NewFileSystem(os.Getenv("ANALYSER_FILESYSTEM_PATH"), int(analyserMemoryLimit))
 		if err != nil {
 			log.Fatalln("could not initialise file system analyser:", err)
 		}
@@ -109,7 +117,7 @@ func main() {
 		if image == "" {
 			image = analyser.DockerDefaultImage
 		}
-		analyse, err = analyser.NewDocker(image)
+		analyse, err = analyser.NewDocker(image, int(analyserMemoryLimit))
 		if err != nil {
 			log.Fatalln("could not initialise Docker analyser:", err)
 		}
