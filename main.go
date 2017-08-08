@@ -91,7 +91,7 @@ func main() {
 	if err != nil {
 		log.Fatalln("could not initialise db:", err)
 	}
-	db.Cleanup(ctx)
+	go db.Cleanup(ctx)
 
 	var analyserMemoryLimit int64
 	if os.Getenv("ANALYSER_MEMORY_LIMIT") != "" {
