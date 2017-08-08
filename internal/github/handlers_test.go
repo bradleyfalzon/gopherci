@@ -161,6 +161,7 @@ func TestWebhookHandler(t *testing.T) {
 				StatusesURL: github.String("https://github.com/owner/repo/status/{sha}"),
 				CloneURL:    github.String("https://github.com/owner/repo.git"),
 				HTMLURL:     github.String("https://github.com/owner/repo"),
+				Private:     github.Bool(false),
 			},
 			After:   github.String("abcdef"),
 			Commits: []github.PushEventCommit{{Added: []string{"main.go"}}},
@@ -181,12 +182,14 @@ func TestWebhookHandler(t *testing.T) {
 						Owner: &github.User{
 							Login: github.String("owner"),
 						},
+						Private: github.Bool(false),
 					},
 					Ref: github.String("base-branch"),
 				},
 				Head: &github.PullRequestBranch{
 					Repo: &github.Repository{
 						CloneURL: github.String("https://github.com/owner/repo.git"),
+						Private:  github.Bool(false),
 					},
 					SHA: github.String("abcdef"),
 					Ref: github.String("head-branch"),
@@ -199,8 +202,9 @@ func TestWebhookHandler(t *testing.T) {
 				Owner: &github.User{
 					Login: github.String("owner"),
 				},
-				Name: github.String("repo"),
-				ID:   github.Int(2),
+				Name:    github.String("repo"),
+				ID:      github.Int(2),
+				Private: github.Bool(false),
 			},
 		}
 	}
@@ -219,6 +223,10 @@ func TestWebhookHandler(t *testing.T) {
 	// No valid installation
 	pushNoInstall := goodPush()
 	pushNoInstall.Installation.ID = github.Int(2)
+
+	// Private repo
+	pushPrivateRepo := goodPush()
+	pushPrivateRepo.Repo.Private = github.Bool(true)
 
 	// Known good PR
 	pr := goodPR()
@@ -239,6 +247,14 @@ func TestWebhookHandler(t *testing.T) {
 	prInvalidAction := goodPR()
 	prInvalidAction.Action = github.String("invalid")
 
+	// Private repo
+	prPrivateRepoA := goodPR()
+	prPrivateRepoA.Repo.Private = github.Bool(true)
+	prPrivateRepoB := goodPR()
+	prPrivateRepoB.PullRequest.Head.Repo.Private = github.Bool(true)
+	prPrivateRepoC := goodPR()
+	prPrivateRepoC.PullRequest.Base.Repo.Private = github.Bool(true)
+
 	tests := []struct {
 		payload  interface{}
 		event    string
@@ -249,11 +265,15 @@ func TestWebhookHandler(t *testing.T) {
 		{pushCfg, "push", true, http.StatusOK},
 		{pushNoGo, "push", false, http.StatusOK},
 		{pushNoInstall, "push", false, http.StatusOK},
+		{pushPrivateRepo, "push", false, http.StatusOK},
 		{pr, "pull_request", true, http.StatusOK},
 		{prCfg, "pull_request", true, http.StatusOK},
 		{prNoGo, "pull_request", false, http.StatusOK},
 		{prNoInstall, "pull_request", false, http.StatusOK},
 		{prInvalidAction, "pull_request", false, http.StatusOK},
+		{prPrivateRepoA, "pull_request", false, http.StatusOK},
+		{prPrivateRepoB, "pull_request", false, http.StatusOK},
+		{prPrivateRepoC, "pull_request", false, http.StatusOK},
 	}
 
 	const (

@@ -73,6 +73,10 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 			err = &ignoreEvent{reason: ignoreNoGoFiles}
 			break
 		}
+		if e.Repo.GetPrivate() {
+			err = &ignoreEvent{reason: ignorePrivateRepos}
+			break
+		}
 		log.Printf("github: push event: installation id: %v", *e.Installation.ID)
 		g.queuePush <- e
 	case *github.PullRequestEvent:
@@ -90,7 +94,10 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 			err = &ignoreEvent{reason: ignoreNoInstallation}
 			break
 		}
-
+		if e.Repo.GetPrivate() || e.PullRequest.Head.Repo.GetPrivate() || e.PullRequest.Base.Repo.GetPrivate() {
+			err = &ignoreEvent{reason: ignorePrivateRepos}
+			break
+		}
 		ok, err = checkPRAffectsGo(r.Context(), installation, *e.Repo.Owner.Login, *e.Repo.Name, *e.Number)
 		if err != nil {
 			break
@@ -123,6 +130,7 @@ const (
 	ignoreNoAction
 	ignoreNoInstallation
 	ignoreNoGoFiles
+	ignorePrivateRepos
 )
 
 // ignoreEvent indicates the event should be accepted but ignored.
@@ -144,6 +152,8 @@ func (e *ignoreEvent) Error() string {
 		return "no enabled installation found"
 	case ignoreNoGoFiles:
 		return "no go files affected"
+	case ignorePrivateRepos:
+		return "private repositories are not yet supported"
 	}
 	return e.extra
 }
