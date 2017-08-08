@@ -59,6 +59,10 @@ index 0000000..6362395
 
 	analyser := &mockExecuter{
 		ExecuteOut: [][]byte{
+			{},   // go env
+			{},   // go version
+			{},   // cat /proc/self/limits
+			{},   // lsb_release --description
 			{},   // installAPTPackages
 			diff, // git diff
 			{},   // install-deps.sh
@@ -71,6 +75,10 @@ index 0000000..6362395
 			[]byte("file is generated"),                  // isFileGenerated
 		},
 		ExecuteErr: []error{
+			nil, // go env
+			nil, // go version
+			nil, // cat /proc/self/limits
+			nil, // lsb_release --description
 			nil, // installAPTPackages
 			nil, // git diff
 			nil, // install-deps.sh
@@ -119,6 +127,10 @@ index 0000000..6362395
 	}
 
 	expectedArgs := [][]string{
+		{"go", "env"},
+		{"go", "version"},
+		{"cat", "/proc/self/limits"},
+		{"lsb_release", "--description"},
 		{"apt-get", "install", "-y", "package1"},
 		{"git", "diff", fmt.Sprintf("%s...%v", refReader.BaseRef, cfg.HeadRef)},
 		{"install-deps.sh"},

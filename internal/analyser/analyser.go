@@ -79,6 +79,20 @@ func Analyse(ctx context.Context, exec Executer, cloner Cloner, configReader Con
 		return errors.WithMessage(err, "could not configure repository")
 	}
 
+	// Show environment
+	envArgs := [][]string{
+		{"go", "env"},
+		{"go", "version"},
+		{"cat", "/proc/self/limits"},
+		{"lsb_release", "--description"},
+	}
+	for _, arg := range envArgs {
+		out, err := exec.Execute(ctx, arg)
+		if err != nil {
+			return fmt.Errorf("could not execute %v: %s\n%s", arg, err, out)
+		}
+	}
+
 	// install packages
 	if err := installAPTPackages(ctx, exec, repoConfig.APTPackages); err != nil {
 		return errors.WithMessage(err, "could not install packages")
