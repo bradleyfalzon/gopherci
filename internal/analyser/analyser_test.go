@@ -9,30 +9,22 @@ import (
 	"github.com/bradleyfalzon/gopherci/internal/db"
 )
 
-type mockAnalyser struct {
+type mockExecuter struct {
 	Executed   [][]string
 	ExecuteOut [][]byte
 	ExecuteErr []error
-	Stopped    bool
 }
 
-var _ Analyser = &mockAnalyser{}
-var _ Executer = &mockAnalyser{}
+var _ Executer = &mockExecuter{}
 
-func (a *mockAnalyser) NewExecuter(_ context.Context, _ string) (Executer, error) {
-	// Return itself
-	return a, nil
-}
-
-func (a *mockAnalyser) Execute(_ context.Context, args []string) (out []byte, err error) {
+func (a *mockExecuter) Execute(_ context.Context, args []string) (out []byte, err error) {
 	a.Executed = append(a.Executed, args)
 	out, a.ExecuteOut = a.ExecuteOut[0], a.ExecuteOut[1:]
 	err, a.ExecuteErr = a.ExecuteErr[0], a.ExecuteErr[1:]
 	return out, err
 }
 
-func (a *mockAnalyser) Stop(_ context.Context) error {
-	a.Stopped = true
+func (a *mockExecuter) Stop(_ context.Context) error {
 	return nil
 }
 
@@ -65,7 +57,7 @@ index 0000000..6362395
 @@ -0,0 +1,1 @@
 +var _ = fmt.Sprintln()`)
 
-	analyser := &mockAnalyser{
+	analyser := &mockExecuter{
 		ExecuteOut: [][]byte{
 			{},   // installAPTPackages
 			diff, // git diff
@@ -126,10 +118,6 @@ index 0000000..6362395
 		t.Errorf("analysis has %v tools want %v", len(analysis.Tools), len(want))
 	}
 
-	if !analyser.Stopped {
-		t.Errorf("expected analyser to be stopped")
-	}
-
 	expectedArgs := [][]string{
 		{"apt-get", "install", "-y", "package1"},
 		{"git", "diff", fmt.Sprintf("%s...%v", refReader.BaseRef, cfg.HeadRef)},
@@ -151,7 +139,7 @@ index 0000000..6362395
 func TestGetPatch(t *testing.T) {
 	wantPatch := []byte("git diff patch")
 
-	analyser := &mockAnalyser{
+	analyser := &mockExecuter{
 		ExecuteOut: [][]byte{
 			wantPatch,
 		},
@@ -181,7 +169,7 @@ func TestGetPatch(t *testing.T) {
 func TestGetPatch_diffError(t *testing.T) {
 	wantPatch := []byte("git show patch")
 
-	analyser := &mockAnalyser{
+	analyser := &mockExecuter{
 		ExecuteOut: [][]byte{
 			[]byte("git diff output"),
 			wantPatch,
@@ -222,7 +210,7 @@ func TestInstallAPTPackages(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		analyser := &mockAnalyser{
+		analyser := &mockExecuter{
 			ExecuteOut: [][]byte{{}},
 			ExecuteErr: []error{nil},
 		}

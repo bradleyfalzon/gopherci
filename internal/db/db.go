@@ -28,6 +28,10 @@ type DB interface {
 	// GetAnalysis returns an analysis for a given analysisID, returns nil if no
 	// analysis was found, or an error occurs.
 	GetAnalysis(analysisID int) (*Analysis, error)
+	// AnalysisOutputs returns the ordered output from the database.
+	AnalysisOutputs(analysisID int) ([]Output, error)
+	// ExecRecorder records the analysis in the database by wrapping the executer.
+	ExecRecorder(analysisID int, exec Executer) Executer
 }
 
 // AnalysisStatus represents a status in the analysis table.
@@ -116,6 +120,15 @@ func (d Duration) Value() (driver.Value, error) {
 // String implements the fmt.Stringer interface.
 func (d Duration) String() string {
 	return time.Duration(d).String()
+}
+
+// Output represents a row in the outputs table.
+type Output struct {
+	ID         int      `db:"id"`
+	AnalysisID int      `db:"analysis_id"`
+	Arguments  string   `db:"arguments"`
+	Duration   Duration `db:"duration"` // Duration is the wall clock time taken to run.
+	Output     string   `db:"output"`
 }
 
 // Analysis represents a single analysis of a repository at a point in time.

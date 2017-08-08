@@ -81,3 +81,13 @@ func (db *MockDB) FinishAnalysis(analysisID int, status AnalysisStatus, analysis
 func (db *MockDB) GetAnalysis(analysisID int) (*Analysis, error) {
 	return nil, nil
 }
+
+// AnalysisOutputs implements the DB interface.
+func (db *MockDB) AnalysisOutputs(analysisID int) ([]Output, error) {
+	return nil, nil
+}
+
+// ExecRecorder implements the DB interface.
+func (db *MockDB) ExecRecorder(analysisID int, executer Executer) Executer {
+	return executer
+}

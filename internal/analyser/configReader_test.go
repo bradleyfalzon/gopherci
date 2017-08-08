@@ -10,7 +10,7 @@ import (
 )
 
 func TestYAMLConfig_default(t *testing.T) {
-	exec := &mockAnalyser{
+	exec := &mockExecuter{
 		ExecuteOut: [][]byte{{}},
 		ExecuteErr: []error{&NonZeroError{ExitCode: 1}},
 	}
@@ -31,7 +31,7 @@ func TestYAMLConfig_default(t *testing.T) {
 }
 
 func TestYAMLConfig_unknownError(t *testing.T) {
-	exec := &mockAnalyser{
+	exec := &mockExecuter{
 		ExecuteOut: [][]byte{{}},
 		ExecuteErr: []error{errors.New("unknown error")},
 	}
@@ -45,7 +45,7 @@ func TestYAMLConfig_unknownError(t *testing.T) {
 
 func TestYAMLConfig_unmarshalError(t *testing.T) {
 	contents := []byte("\t")
-	exec := &mockAnalyser{
+	exec := &mockExecuter{
 		ExecuteOut: [][]byte{contents},
 		ExecuteErr: []error{nil},
 	}
@@ -62,7 +62,7 @@ func TestYAMLConfig(t *testing.T) {
 apt_packages:
     - package1
 `)
-	exec := &mockAnalyser{
+	exec := &mockExecuter{
 		ExecuteOut: [][]byte{contents},
 		ExecuteErr: []error{nil},
 	}
