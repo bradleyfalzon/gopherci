@@ -95,4 +95,4 @@ footer { text-align: center; background-color: #f5f5f5; padding: 40px 20px; bord
     position: absolute;
     top: 0;
 }
-.outputs .output { white-space: pre; display: block; }
+.outputs .output { white-space: pre; display: block; overflow-y: scroll; }
