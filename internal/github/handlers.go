@@ -408,25 +408,22 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		return errors.Wrap(err, "could not run analyser")
 	}
 
-	// if this is a PR add comments, suppressed is the number of comments that
-	// would have been submitted if it wasn't for an internal fixed limit. For
-	// pushes, there are no comments, so suppressed is 0.
-	var suppressed = 0
-	if cfg.pr != 0 {
-		var issues []db.Issue
-		suppressed, issues, err = install.FilterIssues(ctx, cfg.owner, cfg.repo, cfg.pr, analysis.Issues())
-		if err != nil {
-			return err
-		}
+	// Report the issues.
+	var reporters []analyser.Reporter
 
-		err = install.WriteIssues(ctx, cfg.owner, cfg.repo, cfg.pr, cfg.sha, issues)
+	if cfg.pr != 0 {
+		reporters = append(reporters, NewPRCommentReporter(install.client, cfg.owner, cfg.repo, cfg.pr, cfg.sha))
+	}
+
+	for _, reporter := range reporters {
+		err := reporter.Report(ctx, analysis.Issues())
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "error reporting issues")
 		}
-		log.Printf("wrote %v issues as comments, suppressed %v", len(issues)-suppressed, suppressed)
 	}
 
 	// Set the CI status API to success
+	suppressed, _ := analyser.Suppress(analysis.Issues(), analyser.MaxIssueComments)
 	statusDesc := statusDesc(analysis.Issues(), suppressed)
 	if err := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateSuccess, statusDesc, analysisURL); err != nil {
 		return errors.Wrapf(err, "could not set status to success for %v", cfg.statusesURL)

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 )
@@ -97,63 +96,6 @@ func (i *Installation) SetStatus(ctx context.Context, context, statusURL string,
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("received status code %v", resp.StatusCode)
-	}
-	return nil
-}
-
-// maxIssueComments is the maximum number of comments that will be written
-// on a pull request by writeissues. a pr may have more comments written if
-// writeissues is called multiple times, such is multiple syncronise events.
-const maxIssueComments = 10
-
-// FilterIssues deduplicates issues by checking the existing pull request for
-// existing comments and returns comments that don't already exist.
-// Additionally, only a maximum amount of issues will be returned, the number
-// of total suppressed comments is returned.
-func (i *Installation) FilterIssues(ctx context.Context, owner, repo string, prNumber int, issues []db.Issue) (suppressed int, filtered []db.Issue, err error) {
-	ecomments, _, err := i.client.PullRequests.ListComments(ctx, owner, repo, prNumber, nil)
-	if err != nil {
-		return 0, nil, errors.Wrap(err, "could not list existing comments")
-	}
-	// remove duplicate comments, as we're remove elements based on the index
-	// start from last position and work backwards to keep indexes consistent
-	// even after removing elements.
-	for i := len(issues) - 1; i >= 0; i-- {
-		issue := issues[i]
-		for _, ec := range ecomments {
-			if ec.Path == nil || ec.Position == nil || ec.Body == nil {
-				continue
-			}
-			if issue.Path == *ec.Path && issue.HunkPos == *ec.Position && issue.Issue == *ec.Body {
-				issues = append(issues[:i], issues[i+1:]...)
-				break
-			}
-		}
-	}
-	// Of the de-duplicated issues, only return maxIssuesComments
-	if len(issues) > maxIssueComments {
-		return len(issues) - maxIssueComments, issues[:maxIssueComments], nil
-	}
-	return 0, issues, nil
-}
-
-// WriteIssues takes a slice of issues and creates a pull request comment for
-// each issue on a given owner, repo, pr and commit hash. Returns on the first
-// error encountered.
-func (i *Installation) WriteIssues(ctx context.Context, owner, repo string, prNumber int, commit string, issues []db.Issue) error {
-	for _, issue := range issues {
-		comment := &github.PullRequestComment{
-			Body:     github.String(issue.Issue),
-			CommitID: github.String(commit),
-			Path:     github.String(issue.Path),
-			Position: github.Int(issue.HunkPos),
-		}
-		_, _, err := i.client.PullRequests.CreateComment(ctx, owner, repo, prNumber, comment)
-		if err != nil {
-			return errors.Wrapf(err, "could not post comment path: %q, position: %v, commitID: %q, body: %q",
-				*comment.Path, *comment.Position, *comment.CommitID, *comment.Body,
-			)
-		}
 	}
 	return nil
 }
