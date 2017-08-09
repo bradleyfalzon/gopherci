@@ -610,8 +610,6 @@ func TestAnalyse(t *testing.T) {
 	g, mockAnalyser, memDB := setup(t)
 
 	var (
-		statePending  bool
-		stateSuccess  bool
 		postedComment bool
 	)
 
@@ -629,23 +627,6 @@ func TestAnalyse(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(r.Body)
 		switch r.RequestURI {
-		case "/status-url":
-			// Make sure status was set to pending and then success
-			var status struct {
-				State string `json:"state"`
-			}
-			err := decoder.Decode(&status)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			switch {
-			case !statePending && !stateSuccess && status.State == string(StatusStatePending):
-				statePending = true
-			case statePending && !stateSuccess && status.State == string(StatusStateSuccess):
-				stateSuccess = true
-			default:
-				t.Fatalf("unexpected status api change to %v %v %v", status.State, statePending, stateSuccess)
-			}
 		case "/installations/2/access_tokens":
 			// respond with any token to installation transport
 			fmt.Fprintln(w, "{}")
@@ -709,12 +690,8 @@ func TestAnalyse(t *testing.T) {
 	switch {
 	case err != nil:
 		t.Errorf("did not expect error: %v", err)
-	case !statePending:
-		t.Errorf("did not set status state to pending")
 	case !postedComment:
 		t.Errorf("did not post comment")
-	case !stateSuccess:
-		t.Errorf("did not set status state to success")
 	case mockAnalyser.goSrcPath != expectedGoSrcPath:
 		t.Errorf("goSrcPath have: %q want: %q", mockAnalyser.goSrcPath, expectedGoSrcPath)
 	}
@@ -759,27 +736,6 @@ func TestStripScheme(t *testing.T) {
 	}
 	for _, test := range tests {
 		have := stripScheme(test.url)
-		if have != test.want {
-			t.Errorf("have: %v want: %v", have, test.want)
-		}
-	}
-}
-
-func TestStatusDesc(t *testing.T) {
-	tests := []struct {
-		issues     []db.Issue
-		suppressed int
-		want       string
-	}{
-		{[]db.Issue{{}, {}}, 2, "Found 2 issues (2 comments suppressed)"},
-		{[]db.Issue{{}, {}}, 1, "Found 2 issues (1 comment suppressed)"},
-		{[]db.Issue{{}, {}}, 0, "Found 2 issues"},
-		{[]db.Issue{{}}, 0, "Found 1 issue"},
-		{[]db.Issue{}, 0, `Found no issues \ʕ◔ϖ◔ʔ/`},
-	}
-
-	for _, test := range tests {
-		have := statusDesc(test.issues, test.suppressed)
 		if have != test.want {
 			t.Errorf("have: %v want: %v", have, test.want)
 		}
