@@ -140,6 +140,7 @@ func (it *IntegrationTest) Exec(script string, args ...string) {
 func (it *IntegrationTest) WaitForSuccess(ref, statusContext string) *github.RepoStatus {
 	timeout := 60 * time.Second
 	start := time.Now()
+	startedPending := false // first status must be pending
 	for time.Now().Before(start.Add(timeout)) {
 		statuses, _, err := it.github.Repositories.GetCombinedStatus(context.Background(), it.owner, it.repo, ref, nil)
 		if err != nil {
@@ -152,10 +153,16 @@ func (it *IntegrationTest) WaitForSuccess(ref, statusContext string) *github.Rep
 			}
 			it.t.Logf("Checking status: %q for ref %q", *status.State, ref)
 
-			switch *status.State {
-			case "success":
+			switch {
+			case !startedPending:
+				// Make sure the first status we see is a pending status.
+				if want := "pending"; *status.State != want {
+					it.t.Fatalf("first status for ref %v was %v want %v", ref, *status.State, want)
+				}
+				startedPending = true
+			case *status.State == "success":
 				return &status
-			case "failure", "error":
+			case *status.State == "failure" || *status.State == "error":
 				it.t.Fatalf("status %v for ref %v", *status.State, ref)
 			}
 		}

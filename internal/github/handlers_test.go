@@ -610,8 +610,6 @@ func TestAnalyse(t *testing.T) {
 	g, mockAnalyser, memDB := setup(t)
 
 	var (
-		statePending  bool
-		stateSuccess  bool
 		postedComment bool
 	)
 
@@ -629,23 +627,6 @@ func TestAnalyse(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(r.Body)
 		switch r.RequestURI {
-		case "/status-url":
-			// Make sure status was set to pending and then success
-			var status struct {
-				State string `json:"state"`
-			}
-			err := decoder.Decode(&status)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			switch {
-			case !statePending && !stateSuccess && status.State == string(StatusStatePending):
-				statePending = true
-			case statePending && !stateSuccess && status.State == string(StatusStateSuccess):
-				stateSuccess = true
-			default:
-				t.Fatalf("unexpected status api change to %v %v %v", status.State, statePending, stateSuccess)
-			}
 		case "/installations/2/access_tokens":
 			// respond with any token to installation transport
 			fmt.Fprintln(w, "{}")
@@ -709,12 +690,8 @@ func TestAnalyse(t *testing.T) {
 	switch {
 	case err != nil:
 		t.Errorf("did not expect error: %v", err)
-	case !statePending:
-		t.Errorf("did not set status state to pending")
 	case !postedComment:
 		t.Errorf("did not post comment")
-	case !stateSuccess:
-		t.Errorf("did not set status state to success")
 	case mockAnalyser.goSrcPath != expectedGoSrcPath:
 		t.Errorf("goSrcPath have: %q want: %q", mockAnalyser.goSrcPath, expectedGoSrcPath)
 	}
