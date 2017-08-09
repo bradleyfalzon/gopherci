@@ -191,3 +191,123 @@ func TestStatusAPIReporter_statusDesc(t *testing.T) {
 		}
 	}
 }
+
+func TestCommitCommentReporter_report(t *testing.T) {
+	var tests = []struct {
+		issues    []db.Issue
+		wantBody  string
+		wantCount int // number of comments wanted
+	}{
+		{
+			issues: []db.Issue{
+				{Issue: "some issue"},
+			},
+			wantBody:  "GopherCI found **1** issue in the last **2** commits, see: https://example.com",
+			wantCount: 1,
+		},
+		{
+			issues: []db.Issue{
+				{Issue: "some issue 1"},
+				{Issue: "some issue 2"},
+			},
+			wantBody:  "GopherCI found **2** issues in the last **2** commits, see: https://example.com",
+			wantCount: 1,
+		},
+		{
+			issues:    []db.Issue{},
+			wantCount: 0,
+		},
+	}
+
+	for _, test := range tests {
+		var (
+			expectedOwner  = "owner"
+			expectedRepo   = "repo"
+			expectedCmtSHA = "abc123"
+			commentCount   = 0
+		)
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			decoder := json.NewDecoder(r.Body)
+			switch r.RequestURI {
+			case fmt.Sprintf("/repos/%v/%v/commits/%v/comments", expectedOwner, expectedRepo, expectedCmtSHA):
+				commentCount++
+				if test.wantCount == 0 {
+					// we're not wanting any comments, just increment commentCount
+					// and don't check the comment itself
+					return
+				}
+				expected := github.PullRequestComment{
+					Body: github.String(test.wantBody),
+				}
+				var comment github.PullRequestComment
+				err := decoder.Decode(&comment)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if diff := cmp.Diff(expected, comment); diff != "" {
+					t.Fatalf("expected cmt: (-have +want)\n%s", diff)
+				}
+			default:
+				t.Logf(r.RequestURI)
+			}
+		}))
+		defer ts.Close()
+
+		r := NewCommitCommentReporter(github.NewClient(nil), expectedOwner, expectedRepo, expectedCmtSHA, 2, "https://example.com")
+		r.client.BaseURL, _ = url.Parse(ts.URL)
+
+		err := r.Report(context.Background(), test.issues)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		if want := test.wantCount; commentCount != want {
+			t.Errorf("commentCount want: %v, have: %v", want, commentCount)
+		}
+	}
+}
+
+func TestInlineCommitCommentReporter_report(t *testing.T) {
+	var (
+		expectedOwner   = "owner"
+		expectedRepo    = "repo"
+		expectedCmtBody = "body"
+		expectedCmtPath = "path"
+		expectedCmtPos  = 4
+		expectedSHA     = "abc123"
+	)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		decoder := json.NewDecoder(r.Body)
+		switch r.RequestURI {
+		case fmt.Sprintf("/repos/%v/%v/commits/%v/comments", expectedOwner, expectedRepo, expectedSHA):
+			expected := github.RepositoryComment{
+				Body:     github.String(expectedCmtBody),
+				Path:     github.String(expectedCmtPath),
+				Position: github.Int(expectedCmtPos),
+			}
+			var comment github.RepositoryComment
+			err := decoder.Decode(&comment)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if diff := cmp.Diff(expected, comment); diff != "" {
+				t.Fatalf("expected cmt: (-have +want)\n%s", diff)
+			}
+		default:
+			t.Logf(r.RequestURI)
+		}
+	}))
+	defer ts.Close()
+
+	r := NewInlineCommitCommentReporter(github.NewClient(nil), expectedOwner, expectedRepo, expectedSHA)
+	r.client.BaseURL, _ = url.Parse(ts.URL)
+
+	var issues = []db.Issue{{Path: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody}}
+
+	err := r.Report(context.Background(), issues)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
