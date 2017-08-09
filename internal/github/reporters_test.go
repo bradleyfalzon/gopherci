@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-github/github"
 )
 
@@ -76,7 +77,7 @@ func TestPRCommentReporter_filterIssues(t *testing.T) {
 	}
 }
 
-func PRCommentReporter_report(t *testing.T) {
+func TestPRCommentReporter_report(t *testing.T) {
 	var (
 		expectedOwner   = "owner"
 		expectedRepo    = "repo"
@@ -126,5 +127,67 @@ func PRCommentReporter_report(t *testing.T) {
 	err := r.Report(context.Background(), issues)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestStatusAPIReporter_SetStatus(t *testing.T) {
+	type status struct {
+		State       string `json:"state,omitempty"`
+		TargetURL   string `json:"target_url,omitempty"`
+		Description string `json:"description,omitempty"`
+		Context     string `json:"context,omitempty"`
+	}
+	var have status
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		decoder := json.NewDecoder(r.Body)
+		switch r.RequestURI {
+		case "/status-url":
+			err := decoder.Decode(&have)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		default:
+			t.Logf(r.RequestURI)
+		}
+	}))
+	defer ts.Close()
+	statusURL := ts.URL + "/status-url"
+
+	var want = status{
+		State:       string(StatusStatePending),
+		TargetURL:   "https://example.com",
+		Description: "description",
+		Context:     "context",
+	}
+
+	r := NewStatusAPIReporter(github.NewClient(nil), statusURL, want.Context, want.TargetURL)
+	r.SetStatus(context.Background(), StatusStatePending, want.Description)
+
+	if diff := cmp.Diff(have, want); diff != "" {
+		t.Errorf("unexpected status (-have +want)\n%s", diff)
+	}
+}
+
+func TestStatusAPIReporter_statusDesc(t *testing.T) {
+	tests := []struct {
+		issues     []db.Issue
+		suppressed int
+		want       string
+	}{
+		{[]db.Issue{{}, {}}, 2, "Found 2 issues (2 comments suppressed)"},
+		{[]db.Issue{{}, {}}, 1, "Found 2 issues (1 comment suppressed)"},
+		{[]db.Issue{{}, {}}, 0, "Found 2 issues"},
+		{[]db.Issue{{}}, 0, "Found 1 issue"},
+		{[]db.Issue{}, 0, `Found no issues \ʕ◔ϖ◔ʔ/`},
+	}
+
+	r := StatusAPIReporter{}
+
+	for _, test := range tests {
+		have := r.statusDesc(test.issues, test.suppressed)
+		if have != test.want {
+			t.Errorf("have: %v want: %v", have, test.want)
+		}
 	}
 }

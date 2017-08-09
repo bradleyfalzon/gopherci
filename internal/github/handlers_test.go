@@ -741,24 +741,3 @@ func TestStripScheme(t *testing.T) {
 		}
 	}
 }
-
-func TestStatusDesc(t *testing.T) {
-	tests := []struct {
-		issues     []db.Issue
-		suppressed int
-		want       string
-	}{
-		{[]db.Issue{{}, {}}, 2, "Found 2 issues (2 comments suppressed)"},
-		{[]db.Issue{{}, {}}, 1, "Found 2 issues (1 comment suppressed)"},
-		{[]db.Issue{{}, {}}, 0, "Found 2 issues"},
-		{[]db.Issue{{}}, 0, "Found 1 issue"},
-		{[]db.Issue{}, 0, `Found no issues \ʕ◔ϖ◔ʔ/`},
-	}
-
-	for _, test := range tests {
-		have := statusDesc(test.issues, test.suppressed)
-		if have != test.want {
-			t.Errorf("have: %v want: %v", have, test.want)
-		}
-	}
-}

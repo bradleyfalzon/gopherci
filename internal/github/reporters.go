@@ -1,7 +1,12 @@
 package github
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
@@ -85,4 +90,93 @@ func (r *PRCommentReporter) Report(ctx context.Context, issues []db.Issue) error
 	}
 
 	return nil
+}
+
+// StatusState is the state of a GitHub Status API as defined in
+// https://developer.github.com/v3/repos/statuses/
+type StatusState string
+
+// https://developer.github.com/v3/repos/statuses/
+const (
+	StatusStatePending StatusState = "pending"
+	StatusStateSuccess StatusState = "success"
+	StatusStateError   StatusState = "error"
+	StatusStateFailure StatusState = "failure"
+)
+
+// StatusAPIReporter uses the GitHub Statuses API to report build status, such
+// as success or failure.
+type StatusAPIReporter struct {
+	client    *github.Client
+	statusURL string
+	context   string
+	targetURL string
+}
+
+var _ analyser.Reporter = &StatusAPIReporter{}
+
+// NewStatusAPIReporter returns a StatusAPIReporter.
+func NewStatusAPIReporter(client *github.Client, statusURL, context, targetURL string) *StatusAPIReporter {
+	return &StatusAPIReporter{
+		client:    client,
+		statusURL: statusURL,
+		context:   context,
+		targetURL: targetURL,
+	}
+}
+
+// SetStatus sets the CI Status API
+func (r *StatusAPIReporter) SetStatus(ctx context.Context, status StatusState, description string) error {
+	s := struct {
+		State       string `json:"state,omitempty"`
+		TargetURL   string `json:"target_url,omitempty"`
+		Description string `json:"description,omitempty"`
+		Context     string `json:"context,omitempty"`
+	}{
+		string(status), r.targetURL, description, r.context,
+	}
+
+	log.Printf("Setting %v state: %q, context: %q, description: %q", r.statusURL, status, r.context, description)
+
+	js, err := json.Marshal(&s)
+	if err != nil {
+		return errors.Wrap(err, "could not marshal status")
+	}
+
+	req, err := http.NewRequest("POST", r.statusURL, bytes.NewBuffer(js))
+	if err != nil {
+		return errors.Wrapf(err, "could not make status request")
+	}
+	resp, err := r.client.Do(ctx, req, nil)
+	if err != nil {
+		return errors.Wrapf(err, "could not set status to %s for %s", status, r.statusURL)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("received status code %d from %s", resp.StatusCode, r.statusURL)
+	}
+	return nil
+}
+
+// Report implements the analyser.Reporter interface.
+func (r *StatusAPIReporter) Report(ctx context.Context, issues []db.Issue) error {
+	suppressed, _ := analyser.Suppress(issues, analyser.MaxIssueComments)
+	return r.SetStatus(ctx, StatusStateSuccess, r.statusDesc(issues, suppressed))
+}
+
+// statusDesc builds a status description based on issues.
+func (StatusAPIReporter) statusDesc(issues []db.Issue, suppressed int) string {
+	desc := fmt.Sprintf("Found %d issues", len(issues))
+	switch {
+	case len(issues) == 0:
+		return `Found no issues \ʕ◔ϖ◔ʔ/`
+	case len(issues) == 1:
+		return `Found 1 issue`
+	case suppressed == 1:
+		desc += fmt.Sprintf(" (%v comment suppressed)", suppressed)
+	case suppressed > 1:
+		desc += fmt.Sprintf(" (%v comments suppressed)", suppressed)
+	}
+	return desc
 }

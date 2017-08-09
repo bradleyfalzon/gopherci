@@ -351,9 +351,10 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	analysisURL := analysis.HTMLURL(g.gciBaseURL)
 
 	// Set the CI status API to pending
-	err = install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStatePending, "In progress", analysisURL)
+	statusAPIReporter := NewStatusAPIReporter(install.client, cfg.statusesURL, cfg.statusesContext, analysisURL)
+	err = statusAPIReporter.SetStatus(ctx, StatusStatePending, "In progress")
 	if err != nil {
-		return errors.Wrapf(err, "could not set status to pending for %v", cfg.statusesURL)
+		return err
 	}
 
 	// if Analyse returns an error, set status as internally failed, and if
@@ -366,8 +367,8 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		}
 
 		if err != nil {
-			if serr := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateError, "Internal error", analysisURL); serr != nil {
-				log.Printf("could not set status to error for %v: %s", cfg.statusesURL, serr)
+			if serr := statusAPIReporter.SetStatus(ctx, StatusStateError, "Internal error"); serr != nil {
+				log.Printf("could not set status to error for analysisID %v: %s", analysis.ID, serr)
 			}
 
 			if ferr := g.db.FinishAnalysis(analysis.ID, db.AnalysisStatusError, nil); ferr != nil {
@@ -410,8 +411,10 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 
 	// Report the issues.
 	var reporters []analyser.Reporter
+	reporters = append(reporters, statusAPIReporter) // Status API.
 
 	if cfg.pr != 0 {
+		// Inline code comments on the PR.
 		reporters = append(reporters, NewPRCommentReporter(install.client, cfg.owner, cfg.repo, cfg.pr, cfg.sha))
 	}
 
@@ -420,13 +423,6 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 		if err != nil {
 			return errors.WithMessage(err, "error reporting issues")
 		}
-	}
-
-	// Set the CI status API to success
-	suppressed, _ := analyser.Suppress(analysis.Issues(), analyser.MaxIssueComments)
-	statusDesc := statusDesc(analysis.Issues(), suppressed)
-	if err := install.SetStatus(ctx, cfg.statusesContext, cfg.statusesURL, StatusStateSuccess, statusDesc, analysisURL); err != nil {
-		return errors.Wrapf(err, "could not set status to success for %v", cfg.statusesURL)
 	}
 
 	err = g.db.FinishAnalysis(analysis.ID, db.AnalysisStatusSuccess, analysis)
@@ -440,20 +436,4 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 // stripScheme removes the scheme/protocol and :// from a URL.
 func stripScheme(url string) string {
 	return regexp.MustCompile(`[a-zA-Z0-9+.-]+://`).ReplaceAllString(url, "")
-}
-
-// statusDesc builds a status description based on issues.
-func statusDesc(issues []db.Issue, suppressed int) string {
-	desc := fmt.Sprintf("Found %d issues", len(issues))
-	switch {
-	case len(issues) == 0:
-		return `Found no issues \ʕ◔ϖ◔ʔ/`
-	case len(issues) == 1:
-		return `Found 1 issue`
-	case suppressed == 1:
-		desc += fmt.Sprintf(" (%v comment suppressed)", suppressed)
-	case suppressed > 1:
-		desc += fmt.Sprintf(" (%v comments suppressed)", suppressed)
-	}
-	return desc
 }

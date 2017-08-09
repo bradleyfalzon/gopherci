@@ -1,9 +1,7 @@
 package github
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -54,50 +52,6 @@ func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 // IsEnabled returns true if an installation is enabled.
 func (i *Installation) IsEnabled() bool {
 	return i != nil
-}
-
-// StatusState is the state of a GitHub Status API as defined in
-// https://developer.github.com/v3/repos/statuses/
-type StatusState string
-
-const (
-	StatusStatePending StatusState = "pending"
-	StatusStateSuccess StatusState = "success"
-	StatusStateError   StatusState = "error"
-	StatusStateFailure StatusState = "failure"
-)
-
-// SetStatus sets the CI Status API
-func (i *Installation) SetStatus(ctx context.Context, context, statusURL string, status StatusState, description, targetURL string) error {
-	s := struct {
-		State       string `json:"state,omitempty"`
-		TargetURL   string `json:"target_url,omitempty"`
-		Description string `json:"description,omitempty"`
-		Context     string `json:"context,omitempty"`
-	}{
-		string(status), targetURL, description, context,
-	}
-	log.Printf("status: %#v", status)
-
-	js, err := json.Marshal(&s)
-	if err != nil {
-		return errors.Wrap(err, "could not marshal status")
-	}
-
-	req, err := http.NewRequest("POST", statusURL, bytes.NewBuffer(js))
-	if err != nil {
-		return err
-	}
-	resp, err := i.client.Do(ctx, req, nil)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("received status code %v", resp.StatusCode)
-	}
-	return nil
 }
 
 // Diff implements the web.VCSReader interface.
