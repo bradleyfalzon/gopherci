@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,7 +64,7 @@ func NewIntegrationTest(ctx context.Context, t *testing.T) *IntegrationTest {
 	if os.Getenv("INTEGRATION_PATH") != "" {
 		it.env = append(it.env, "PATH="+os.Getenv("INTEGRATION_PATH"))
 	}
-	it.t.Logf("Additional environment for os/exec.Command (maybe empty): %v", it.env)
+	it.t.Logf("Additional environment for os/exec.Command (may be empty): %v", it.env)
 
 	// Setup GitHub Client.
 	ts := oauth2.StaticTokenSource(
@@ -172,7 +173,105 @@ func (it *IntegrationTest) WaitForSuccess(ref, statusContext string) *github.Rep
 	return nil
 }
 
-func TestGitHubComments(t *testing.T) {
+// TestGitHubComments_pushMultiple tests pushing multiple commits which should
+// create a single summary commit comment.
+func TestGitHubComments_pushMultiple(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	it := NewIntegrationTest(ctx, t)
+	defer it.Close()
+
+	// Push a branch which contains a single issue in a single commit.
+	branch := "issue-comments-multiple"
+	it.Exec("issue-comments-multiple.sh", branch)
+
+	it.WaitForSuccess(branch, "ci/gopherci/push")
+
+	time.Sleep(5 * time.Second) // wait for comments to appear
+
+	// Make sure the expected comments appear
+
+	commits, _, err := it.github.Repositories.ListCommits(ctx, it.owner, it.repo, &github.CommitsListOptions{
+		SHA: branch,
+	})
+	if err != nil {
+		t.Fatalf("could not get commits: %v", err)
+	}
+	if len(commits) == 0 {
+		t.Fatalf("list commits was empty on branch %v", branch)
+	}
+
+	sha := commits[0].GetSHA()
+	comments, _, err := it.github.Repositories.ListCommitComments(ctx, it.owner, it.repo, sha, nil)
+	if err != nil {
+		t.Fatalf("could not get commits for sha %v on branch %v: %v", err, sha, branch)
+	}
+
+	if want := 1; len(comments) != want {
+		t.Fatalf("have %v comments want %v on sha %v", len(comments), want, sha)
+	}
+	if comments[0].Position != nil {
+		t.Fatalf("have comments position %v want %v", *comments[0].Position, nil)
+	}
+	if comments[0].Path != nil {
+		t.Fatalf("have comments path %q want %q", *comments[0].Path, nil)
+	}
+	if prefix := "GopherCI found **2** issues in the last **2** commits, see: https://"; !strings.HasPrefix(*comments[0].Body, prefix) {
+		t.Fatalf("comment body does not match expected prefix:\nhave: %q\nwant: %q", *comments[0].Body, prefix)
+	}
+}
+
+// TestGitHubComments_pushSingle tests pushing a single commit which should
+// create an inline commit comment.
+func TestGitHubComments_pushSingle(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	it := NewIntegrationTest(ctx, t)
+	defer it.Close()
+
+	// Push a branch which contains a single issue in a single commit.
+	branch := "issue-comments"
+	it.Exec("issue-comments.sh", branch)
+
+	it.WaitForSuccess(branch, "ci/gopherci/push")
+
+	time.Sleep(5 * time.Second) // wait for comments to appear
+
+	// Make sure the expected comments appear
+
+	commits, _, err := it.github.Repositories.ListCommits(ctx, it.owner, it.repo, &github.CommitsListOptions{
+		SHA: branch,
+	})
+	if err != nil {
+		t.Fatalf("could not get commits: %v", err)
+	}
+	if len(commits) == 0 {
+		t.Fatalf("list commits was empty on branch %v", branch)
+	}
+
+	sha := commits[0].GetSHA()
+	comments, _, err := it.github.Repositories.ListCommitComments(ctx, it.owner, it.repo, sha, nil)
+	if err != nil {
+		t.Fatalf("could not get commits for sha %v on branch %v: %v", err, sha, branch)
+	}
+
+	if want := 1; len(comments) != want {
+		t.Fatalf("have %v comments want %v on sha %v", len(comments), want, sha)
+	}
+	if want := 2; *comments[0].Position != want {
+		t.Fatalf("have comments position %v want %v", *comments[0].Position, want)
+	}
+	if want := "foo.go"; *comments[0].Path != want {
+		t.Fatalf("have comments path %q want %q", *comments[0].Path, want)
+	}
+	if want := "golint: exported function Foo should have comment or be unexported"; *comments[0].Body != want {
+		t.Fatalf("unexpected comment body:\nhave: %q\nwant: %q", *comments[0].Body, want)
+	}
+}
+
+func TestGitHubComments_pr(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -209,11 +308,11 @@ func TestGitHubComments(t *testing.T) {
 	if want := 2; *comments[0].Position != want {
 		t.Fatalf("have comments position %v want %v", *comments[0].Position, want)
 	}
-	if want := "golint: exported function Foo should have comment or be unexported"; *comments[0].Body != want {
-		t.Fatalf("unexpected comment body:\nhave: %q\nwant: %q", *comments[0].Body, want)
-	}
 	if want := "foo.go"; *comments[0].Path != want {
 		t.Fatalf("have comments path %q want %q", *comments[0].Path, want)
+	}
+	if want := "golint: exported function Foo should have comment or be unexported"; *comments[0].Body != want {
+		t.Fatalf("unexpected comment body:\nhave: %q\nwant: %q", *comments[0].Body, want)
 	}
 
 	it.Exec("dupe-issue-comments.sh")

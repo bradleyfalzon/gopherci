@@ -512,8 +512,12 @@ func TestPushConfig(t *testing.T) {
 		statusesURL:     "https://github.com/owner/repo/status/abcdef",
 		commitFrom:      "abcdef~2",
 		commitTo:        "abcdef",
+		commitCount:     2,
 		headRef:         "abcdef",
 		goSrcPath:       "github.com/owner/repo",
+		owner:           "owner",
+		repo:            "repo",
+		sha:             "abcdef",
 	}
 
 	have := PushConfig(goodPush())
@@ -528,7 +532,11 @@ func goodPush() *github.PushEvent {
 			ID: github.Int(1),
 		},
 		Repo: &github.PushEventRepository{
-			ID:          github.Int(2),
+			ID: github.Int(2),
+			Owner: &github.PushEventRepoOwner{
+				Name: github.String("owner"),
+			},
+			Name:        github.String("repo"),
 			StatusesURL: github.String("https://github.com/owner/repo/status/{sha}"),
 			CloneURL:    github.String("https://github.com/owner/repo.git"),
 			HTMLURL:     github.String("https://github.com/owner/repo"),

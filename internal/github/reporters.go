@@ -161,6 +161,7 @@ func (r *StatusAPIReporter) SetStatus(ctx context.Context, status StatusState, d
 
 // Report implements the analyser.Reporter interface.
 func (r *StatusAPIReporter) Report(ctx context.Context, issues []db.Issue) error {
+	// TODO remove suppressed count, we don't know how many were suppressed.
 	suppressed, _ := analyser.Suppress(issues, analyser.MaxIssueComments)
 	return r.SetStatus(ctx, StatusStateSuccess, r.statusDesc(issues, suppressed))
 }
@@ -179,4 +180,97 @@ func (StatusAPIReporter) statusDesc(issues []db.Issue, suppressed int) string {
 		desc += fmt.Sprintf(" (%v comments suppressed)", suppressed)
 	}
 	return desc
+}
+
+// CommitCommentReporter creates a single commit comment summarising all issues
+// on a given owner, repo, and commit hash.
+type CommitCommentReporter struct {
+	client      *github.Client
+	owner       string
+	repo        string
+	commit      string
+	commits     int
+	analysisURL string
+}
+
+var _ analyser.Reporter = &CommitCommentReporter{}
+
+// NewCommitCommentReporter returns a CommitCommentReporter. commits is the
+// number of commits the analysis is checking (to be displayed in the message)
+// and analysisURL is the URL of the analysis.
+func NewCommitCommentReporter(client *github.Client, owner, repo, commit string, commits int, analysisURL string) *CommitCommentReporter {
+	return &CommitCommentReporter{
+		client:      client,
+		owner:       owner,
+		repo:        repo,
+		commit:      commit,
+		commits:     commits,
+		analysisURL: analysisURL,
+	}
+}
+
+// Report implements the analyser.Reporter interface.
+func (r *CommitCommentReporter) Report(ctx context.Context, issues []db.Issue) error {
+	if len(issues) == 0 {
+		return nil
+	}
+
+	// msg assumes there's always 2 or more commits, else you'd use InlineCommitCommentReporter
+	plural := ""
+	if len(issues) > 1 {
+		plural = "s"
+	}
+	msg := fmt.Sprintf("GopherCI found **%d** issue%s in the last **%d** commits, see: %s",
+		len(issues), plural, r.commits, r.analysisURL,
+	)
+
+	comment := &github.RepositoryComment{
+		Body: github.String(msg),
+	}
+	_, _, err := r.client.Repositories.CreateComment(ctx, r.owner, r.repo, r.commit, comment)
+	return errors.Wrapf(err, "could not post comment commit: %q, body: %q", r.commit, *comment.Body)
+}
+
+// InlineCommitCommentReporter is a analyser.Reporter that creates a commit
+// comment for each issue on a single commit. This should only be used if all
+// issues occur on a single commit (not when an analysis checks multiple commits
+// such as during a push for 2 or more commits).
+type InlineCommitCommentReporter struct {
+	client *github.Client
+	owner  string
+	repo   string
+	commit string
+}
+
+var _ analyser.Reporter = &InlineCommitCommentReporter{}
+
+// NewInlineCommitCommentReporter returns a InlineCommitCommentReporter.
+func NewInlineCommitCommentReporter(client *github.Client, owner, repo, commit string) *InlineCommitCommentReporter {
+	return &InlineCommitCommentReporter{
+		client: client,
+		owner:  owner,
+		repo:   repo,
+		commit: commit,
+	}
+}
+
+// Report implements the analyser.Reporter interface.
+func (r *InlineCommitCommentReporter) Report(ctx context.Context, issues []db.Issue) error {
+	_, issues = analyser.Suppress(issues, analyser.MaxIssueComments)
+
+	for _, issue := range issues {
+		comment := &github.RepositoryComment{
+			Body:     github.String(issue.Issue),
+			Path:     github.String(issue.Path),
+			Position: github.Int(issue.HunkPos),
+		}
+		_, _, err := r.client.Repositories.CreateComment(ctx, r.owner, r.repo, r.commit, comment)
+		if err != nil {
+			return errors.Wrapf(err, "could not post comment path: %q, position: %v, commit: %q, body: %q",
+				*comment.Path, *comment.Position, r.commit, *comment.Body,
+			)
+		}
+	}
+
+	return nil
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/bradleyfalzon/gopherci/internal/db"
 )
 
-// A Reporter reports the issues.
+// A Reporter reports the issues, and may be called with 0 or more issues.
 type Reporter interface {
 	Report(context.Context, []db.Issue) error
 }

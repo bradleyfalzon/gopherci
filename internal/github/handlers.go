@@ -261,8 +261,12 @@ func PushConfig(e *github.PushEvent) AnalyseConfig {
 		statusesURL:     strings.Replace(*e.Repo.StatusesURL, "{sha}", *e.After, -1),
 		commitFrom:      commitFrom,
 		commitTo:        *e.After,
+		commitCount:     len(e.Commits),
 		headRef:         *e.After,
 		goSrcPath:       stripScheme(*e.Repo.HTMLURL),
+		owner:           *e.Repo.Owner.Name,
+		repo:            *e.Repo.Name,
+		sha:             *e.After,
 	}
 }
 
@@ -301,8 +305,9 @@ type AnalyseConfig struct {
 	statusesURL     string
 
 	// if push (EventTypePush)
-	commitFrom string
-	commitTo   string
+	commitFrom  string
+	commitTo    string
+	commitCount int
 
 	// if pull request (EventTypePullRequest)
 	pr int
@@ -312,9 +317,9 @@ type AnalyseConfig struct {
 	goSrcPath string
 
 	// for issue comments.
-	owner string // required if eventType is EventTypePullRequest.
-	repo  string // required if eventType is EventTypePullRequest.
-	sha   string // required if eventType is EventTypePullRequest.
+	owner string
+	repo  string
+	sha   string
 }
 
 // Analyse analyses a GitHub event. If cfg.pr is not 0, comments will also be
@@ -413,9 +418,16 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	var reporters []analyser.Reporter
 	reporters = append(reporters, statusAPIReporter) // Status API.
 
-	if cfg.pr != 0 {
+	switch {
+	case cfg.pr != 0:
 		// Inline code comments on the PR.
 		reporters = append(reporters, NewPRCommentReporter(install.client, cfg.owner, cfg.repo, cfg.pr, cfg.sha))
+	case cfg.commitCount == 1:
+		// Comment on the single commit the issues inline.
+		reporters = append(reporters, NewInlineCommitCommentReporter(install.client, cfg.owner, cfg.repo, cfg.sha))
+	case cfg.commitCount > 1:
+		// Comment on the latest commit a summary of all commits.
+		reporters = append(reporters, NewCommitCommentReporter(install.client, cfg.owner, cfg.repo, cfg.sha, cfg.commitCount, analysisURL))
 	}
 
 	for _, reporter := range reporters {
