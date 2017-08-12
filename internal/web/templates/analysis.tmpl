@@ -13,22 +13,18 @@
                     <tr>
                         <th>Build Status</th>
                         <td>
-                            {{ if eq .Analysis.Status "Success" }}
-                                <span class="badge badge-success">{{ .Analysis.Status }}</span>
-                                <!-- <button type="button" class="btn btn-outline-danger btn-sm">Mark as Failure</button>-->
-                            {{ else if eq .Analysis.Status "Failure" }}
-                                <span class="badge badge-danger">{{ .Analysis.Status }}</span>
-                                <!--<button type="button" class="btn btn-outline-success btn-sm">Mark as Success</button>-->
-                            {{ else if eq .Analysis.Status "Error" }}
-                                <span class="badge badge-warning">{{ .Analysis.Status }}</span>
-                                <!--<button type="button" class="btn btn-outline-success btn-sm">Mark as Success</button>-->
+                            {{ if eq .Analysis.Status "Pending" }}
+                                <span class="badge badge-pending">{{ .Analysis.Status }}</span>
                             {{ else }}
-                                <!--<span class="badge badge-default">{{ .Analysis.Status }}</span>-->
+                                {{ if eq .Analysis.Status "Success" }}
+                                    <span class="badge badge-success">{{ .Analysis.Status }}</span>
+                                {{ else if eq .Analysis.Status "Failure" }}
+                                    <span class="badge badge-danger">{{ .Analysis.Status }}</span>
+                                {{ else if eq .Analysis.Status "Error" }}
+                                    <span class="badge badge-warning">{{ .Analysis.Status }}</span>
+                                {{ end }}
+                                <small>with <b>{{ .TotalIssues }}</b> issue{{ if ne .TotalIssues 1 }}s{{ end }} found.</small>
                             {{ end }}
-
-                            <small>with <b>{{ .TotalIssues }}</b> issue{{ if ne .TotalIssues 1 }}s{{ end }} found.</small>
-
-                            <!--<button type="button" class="btn btn-secondary btn-sm">Rerun Analysis</button>-->
                         </td>
                     </tr>
                 </tbody>

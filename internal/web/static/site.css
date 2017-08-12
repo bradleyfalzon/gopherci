@@ -27,6 +27,7 @@ footer { text-align: center; background-color: #f5f5f5; padding: 40px 20px; bord
 .asummary .durations { text-align: center; }
 .asummary .duration { color: #757575; }
 .asummary .duration-cont { border-right: 1px solid #eceeef; border-bottom: 1px solid #eceeef; padding-top: .75em; }
+.asummary .badge-pending { color: #fff; background-color: grey; }
 
 /* Analysis Tools Summary */
 .tools {
