@@ -16,7 +16,7 @@ import (
 	"github.com/google/go-github/github"
 )
 
-func TestPRCommentReporter_filterIssues(t *testing.T) {
+func TestDedupePRIssues(t *testing.T) {
 	var (
 		expectedOwner   = "owner"
 		expectedRepo    = "repo"
@@ -58,8 +58,8 @@ func TestPRCommentReporter_filterIssues(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	r := NewPRCommentReporter(github.NewClient(nil), expectedOwner, expectedRepo, expectedPR, "")
-	r.client.BaseURL, _ = url.Parse(ts.URL)
+	client := github.NewClient(nil)
+	client.BaseURL, _ = url.Parse(ts.URL)
 
 	var issues = []db.Issue{
 		{Path: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody},     // remove
@@ -67,7 +67,7 @@ func TestPRCommentReporter_filterIssues(t *testing.T) {
 		{Path: expectedCmtPath, HunkPos: expectedCmtPos + 2, Issue: expectedCmtBody}, // remove
 	}
 
-	filtered, err := r.filterIssues(context.Background(), issues)
+	filtered, err := dedupePRIssues(context.Background(), client, expectedOwner, expectedRepo, expectedPR, issues)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

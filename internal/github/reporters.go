@@ -38,10 +38,10 @@ func NewPRCommentReporter(client *github.Client, owner, repo string, number int,
 	}
 }
 
-// FilterIssues deduplicates issues by checking the existing pull request for
+// dedupePRIssues deduplicates issues by checking the existing pull request for
 // existing comments and returns comments that don't already exist.
-func (r *PRCommentReporter) filterIssues(ctx context.Context, issues []db.Issue) (filtered []db.Issue, err error) {
-	ecomments, _, err := r.client.PullRequests.ListComments(ctx, r.owner, r.repo, r.number, nil)
+func dedupePRIssues(ctx context.Context, client *github.Client, owner, repo string, number int, issues []db.Issue) (filtered []db.Issue, err error) {
+	ecomments, _, err := client.PullRequests.ListComments(ctx, owner, repo, number, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not list existing comments")
 	}
@@ -67,7 +67,7 @@ func (r *PRCommentReporter) filterIssues(ctx context.Context, issues []db.Issue)
 
 // Report implements the analyser.Reporter interface.
 func (r *PRCommentReporter) Report(ctx context.Context, issues []db.Issue) error {
-	filtered, err := r.filterIssues(ctx, issues)
+	filtered, err := dedupePRIssues(ctx, r.client, r.owner, r.repo, r.number, issues)
 	if err != nil {
 		return err
 	}
