@@ -296,6 +296,20 @@ func TestGitHubComments_pr(t *testing.T) {
 
 	time.Sleep(5 * time.Second) // wait for comments to appear
 
+	// Make sure review was completed
+	reviews, _, err := it.github.PullRequests.ListReviews(ctx, it.owner, it.repo, *pr.Number, nil)
+	if err != nil {
+		t.Fatalf("could not get pull request reviews: %v", err)
+	}
+
+	if want := 1; len(reviews) != want {
+		t.Fatalf("have %v reviews want %v", len(reviews), want)
+	}
+
+	if want := "COMMENTED"; reviews[0].GetState() != want {
+		t.Fatalf("have %v review state want %v", reviews[0].GetState(), want)
+	}
+
 	// Make sure the expected comments appear
 	comments, _, err := it.github.PullRequests.ListComments(ctx, it.owner, it.repo, *pr.Number, nil)
 	if err != nil {
@@ -361,6 +375,56 @@ func TestGitHubComments_ignoreGenerated(t *testing.T) {
 	time.Sleep(5 * time.Second) // wait for comments to appear
 
 	// Make sure the expected comments appear
+	comments, _, err := it.github.PullRequests.ListComments(ctx, it.owner, it.repo, *pr.Number, nil)
+	if err != nil {
+		t.Fatalf("could not get pull request comments: %v", err)
+	}
+
+	if want := 0; len(comments) != want {
+		t.Fatalf("have %v comments want %v", len(comments), want)
+	}
+}
+
+func TestGitHubComments_none(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	it := NewIntegrationTest(ctx, t)
+	defer it.Close()
+
+	// Push a branch which contains no issues
+	branch := "issue-no-comments"
+	it.Exec("issue-no-comments.sh", branch)
+
+	// Make PR
+	pr, _, err := it.github.PullRequests.Create(ctx, it.owner, it.repo, &github.NewPullRequest{
+		Title: github.String("pr title"),
+		Head:  github.String(branch),
+		Base:  github.String("master"),
+	})
+	if err != nil {
+		t.Fatalf("could not create pull request: %v", err)
+	}
+
+	it.WaitForSuccess(branch, "ci/gopherci/pr")
+
+	time.Sleep(5 * time.Second) // wait for comments to appear (hopefully none)
+
+	// Make sure review was completed
+	reviews, _, err := it.github.PullRequests.ListReviews(ctx, it.owner, it.repo, *pr.Number, nil)
+	if err != nil {
+		t.Fatalf("could not get pull request reviews: %v", err)
+	}
+
+	if want := 1; len(reviews) != want {
+		t.Fatalf("have %v reviews want %v", len(reviews), want)
+	}
+
+	if want := "APPROVED"; reviews[0].GetState() != want {
+		t.Fatalf("have %v review state want %v", reviews[0].GetState(), want)
+	}
+
+	// Make sure no comments appear
 	comments, _, err := it.github.PullRequests.ListComments(ctx, it.owner, it.repo, *pr.Number, nil)
 	if err != nil {
 		t.Fatalf("could not get pull request comments: %v", err)

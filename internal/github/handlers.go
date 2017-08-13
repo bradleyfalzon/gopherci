@@ -450,7 +450,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	switch {
 	case cfg.pr != 0:
 		// Inline code comments on the PR.
-		reporters = append(reporters, NewPRCommentReporter(install.client, cfg.owner, cfg.repo, cfg.pr, cfg.sha))
+		reporters = append(reporters, NewPRReviewReporter(install.client, cfg.owner, cfg.repo, cfg.pr, cfg.sha))
 	case cfg.commitCount == 1:
 		// Comment on the single commit the issues inline.
 		reporters = append(reporters, NewInlineCommitCommentReporter(install.client, cfg.owner, cfg.repo, cfg.sha))
