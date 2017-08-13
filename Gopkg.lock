@@ -106,7 +106,7 @@
   branch = "master"
   name = "github.com/google/go-github"
   packages = ["github"]
-  revision = "35d38108ba83757e9b6fc00e4ba7e2d597c651be"
+  revision = "6afafa88c26eb51b33a8307c944bd2f0ef227af7"
 
 [[projects]]
   branch = "master"
