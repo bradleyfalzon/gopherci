@@ -38,10 +38,10 @@ func NewPRCommentReporter(client *github.Client, owner, repo string, number int,
 	}
 }
 
-// FilterIssues deduplicates issues by checking the existing pull request for
+// dedupePRIssues deduplicates issues by checking the existing pull request for
 // existing comments and returns comments that don't already exist.
-func (r *PRCommentReporter) filterIssues(ctx context.Context, issues []db.Issue) (filtered []db.Issue, err error) {
-	ecomments, _, err := r.client.PullRequests.ListComments(ctx, r.owner, r.repo, r.number, nil)
+func dedupePRIssues(ctx context.Context, client *github.Client, owner, repo string, number int, issues []db.Issue) (filtered []db.Issue, err error) {
+	ecomments, _, err := client.PullRequests.ListComments(ctx, owner, repo, number, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not list existing comments")
 	}
@@ -67,7 +67,7 @@ func (r *PRCommentReporter) filterIssues(ctx context.Context, issues []db.Issue)
 
 // Report implements the analyser.Reporter interface.
 func (r *PRCommentReporter) Report(ctx context.Context, issues []db.Issue) error {
-	filtered, err := r.filterIssues(ctx, issues)
+	filtered, err := dedupePRIssues(ctx, r.client, r.owner, r.repo, r.number, issues)
 	if err != nil {
 		return err
 	}
@@ -273,4 +273,59 @@ func (r *InlineCommitCommentReporter) Report(ctx context.Context, issues []db.Is
 	}
 
 	return nil
+}
+
+// PRReviewReporter is a analyser.Reporter that creates a pull request review
+// on a given owner, repo, pr and commit hash. Sets review status to APPROVE
+// if there are no comments or COMMENT otherwise.
+type PRReviewReporter struct {
+	client *github.Client
+	owner  string
+	repo   string
+	number int
+	commit string
+}
+
+var _ analyser.Reporter = &PRReviewReporter{}
+
+// NewPRReviewReporter returns a PRReviewReporter.
+func NewPRReviewReporter(client *github.Client, owner, repo string, number int, commit string) *PRReviewReporter {
+	return &PRReviewReporter{
+		client: client,
+		owner:  owner,
+		repo:   repo,
+		number: number,
+		commit: commit,
+	}
+}
+
+// Report implements the analyser.Reporter interface.
+func (r *PRReviewReporter) Report(ctx context.Context, issues []db.Issue) error {
+	issues, err := dedupePRIssues(ctx, r.client, r.owner, r.repo, r.number, issues)
+	if err != nil {
+		return err
+	}
+
+	_, issues = analyser.Suppress(issues, analyser.MaxIssueComments)
+
+	var comments []*github.DraftReviewComment
+	for _, issue := range issues {
+		comments = append(comments, &github.DraftReviewComment{
+			Body:     github.String(issue.Issue),
+			Path:     github.String(issue.Path),
+			Position: github.Int(issue.HunkPos),
+		})
+	}
+
+	event := "APPROVE"
+	if len(comments) > 0 {
+		event = "COMMENT"
+	}
+
+	_, _, err = r.client.PullRequests.CreateReview(ctx, r.owner, r.repo, r.number, &github.PullRequestReviewRequest{
+		Event:    github.String(event),
+		CommitID: github.String(r.commit),
+		Comments: comments,
+	})
+	return errors.Wrap(err, "could not post review")
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/google/go-github/github"
 )
 
-func TestPRCommentReporter_filterIssues(t *testing.T) {
+func TestDedupePRIssues(t *testing.T) {
 	var (
 		expectedOwner   = "owner"
 		expectedRepo    = "repo"
@@ -58,8 +58,8 @@ func TestPRCommentReporter_filterIssues(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	r := NewPRCommentReporter(github.NewClient(nil), expectedOwner, expectedRepo, expectedPR, "")
-	r.client.BaseURL, _ = url.Parse(ts.URL)
+	client := github.NewClient(nil)
+	client.BaseURL, _ = url.Parse(ts.URL)
 
 	var issues = []db.Issue{
 		{Path: expectedCmtPath, HunkPos: expectedCmtPos, Issue: expectedCmtBody},     // remove
@@ -67,7 +67,7 @@ func TestPRCommentReporter_filterIssues(t *testing.T) {
 		{Path: expectedCmtPath, HunkPos: expectedCmtPos + 2, Issue: expectedCmtBody}, // remove
 	}
 
-	filtered, err := r.filterIssues(context.Background(), issues)
+	filtered, err := dedupePRIssues(context.Background(), client, expectedOwner, expectedRepo, expectedPR, issues)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -309,5 +309,75 @@ func TestInlineCommitCommentReporter_report(t *testing.T) {
 	err := r.Report(context.Background(), issues)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPRReviewReporter_report(t *testing.T) {
+	var (
+		owner = "owner"
+		repo  = "repo"
+		pr    = 2
+		sha   = "abc123"
+	)
+
+	var tests = map[string]struct {
+		issues []db.Issue
+		want   github.PullRequestReviewRequest
+	}{
+		"noissues": {
+			issues: nil,
+			want: github.PullRequestReviewRequest{
+				Event:    github.String("APPROVE"),
+				CommitID: github.String(sha),
+				Comments: nil,
+			},
+		},
+		"issues": {
+			issues: []db.Issue{
+				{Issue: "body", Path: "path.go", HunkPos: 2},
+			},
+			want: github.PullRequestReviewRequest{
+				Event:    github.String("COMMENT"),
+				CommitID: github.String(sha),
+				Comments: []*github.DraftReviewComment{
+					{
+						Body:     github.String("body"),
+						Path:     github.String("path.go"),
+						Position: github.Int(2),
+					},
+				},
+			},
+		},
+	}
+
+	for desc, test := range tests {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			decoder := json.NewDecoder(r.Body)
+			switch r.RequestURI {
+			case fmt.Sprintf("/repos/%v/%v/pulls/%v/comments", owner, repo, pr):
+				// Call to ListComments
+				fmt.Fprintln(w, "[]")
+			case fmt.Sprintf("/repos/%v/%v/pulls/%v/reviews", owner, repo, pr):
+				var have github.PullRequestReviewRequest
+				err := decoder.Decode(&have)
+				if err != nil {
+					t.Errorf("%v: unexpected error: %v", desc, err)
+				}
+				if diff := cmp.Diff(have, test.want); diff != "" {
+					t.Errorf("%v: expected review (-have +want)%s", desc, diff)
+				}
+			default:
+				t.Logf(r.RequestURI)
+			}
+		}))
+		defer ts.Close()
+
+		r := NewPRReviewReporter(github.NewClient(nil), owner, repo, pr, sha)
+		r.client.BaseURL, _ = url.Parse(ts.URL)
+
+		err := r.Report(context.Background(), test.issues)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
 }
