@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 
@@ -31,7 +30,6 @@ func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 		return nil, nil
 	}
 	if !installation.IsEnabled() {
-		log.Printf("ignoring disabled installation: %+v", installation)
 		return nil, nil
 	}
 

@@ -3,14 +3,15 @@ package analyser
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"testing"
+
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 )
 
 func TestDocker(t *testing.T) {
 	memLimit := 512
-	docker, err := NewDocker(DockerDefaultImage, memLimit)
+	docker, err := NewDocker(logger.Testing(), DockerDefaultImage, memLimit)
 	if err != nil {
 		t.Fatalf("unexpected error initialising docker: %v", err)
 	}
@@ -42,7 +43,6 @@ func TestDocker(t *testing.T) {
 
 	// Ensure error codes are captured
 	out, err = exec.Execute(ctx, []string{">&2 echo error; false"})
-	log.Printf("%q %q", string(out), err)
 	if want := "error\n"; want != string(out) {
 		t.Errorf("\nwant: %q\nhave: %q", want, out)
 	}

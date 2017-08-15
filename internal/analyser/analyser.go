@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 	"github.com/bradleyfalzon/revgrep"
 	"github.com/pkg/errors"
 )
@@ -61,11 +61,12 @@ func (e *NonZeroError) Error() string {
 // Analyse downloads a repository set in config in an environment provided by
 // exec, running the series of tools. Writes results to provided analysis,
 // or an error. The repository is expected to contain at least one Go package.
-func Analyse(ctx context.Context, exec Executer, cloner Cloner, configReader ConfigReader, refReader RefReader, config Config, analysis *db.Analysis) error {
+func Analyse(ctx context.Context, logger logger.Logger, exec Executer, cloner Cloner, configReader ConfigReader, refReader RefReader, config Config, analysis *db.Analysis) error {
 	start := time.Now()
 	defer func() {
 		analysis.TotalDuration = db.Duration(time.Since(start))
 	}()
+	logger = logger.With("area", "analyser")
 
 	deltaStart := time.Now() // start of specific analysis
 	if err := cloner.Clone(ctx, exec); err != nil {
@@ -118,7 +119,7 @@ func Analyse(ctx context.Context, exec Executer, cloner Cloner, configReader Con
 		return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 	}
 	analysis.DepsDuration = db.Duration(time.Since(deltaStart))
-	log.Printf("install-deps.sh output: %s", bytes.TrimSpace(out))
+	logger.With("step", "install-deps.sh").Info(string(bytes.TrimSpace(out)))
 
 	// get the base package working directory, used by revgrep to change absolute
 	// path for the filename in an issue (used by some tools) to relative (used by
@@ -148,7 +149,7 @@ func Analyse(ctx context.Context, exec Executer, cloner Cloner, configReader Con
 		default:
 			return fmt.Errorf("could not execute %v: %s\n%s", args, err, out)
 		}
-		log.Printf("%v output:\n%s", tool.Name, out)
+		logger.With("step", tool.Name).Info("ran tool")
 
 		checker := revgrep.Checker{
 			Patch:   bytes.NewReader(patch),
@@ -160,7 +161,7 @@ func Analyse(ctx context.Context, exec Executer, cloner Cloner, configReader Con
 		if err != nil {
 			return err
 		}
-		log.Printf("revgrep found %v issues", len(revIssues))
+		logger.Infof("revgrep found %v issues", len(revIssues))
 
 		var issues []db.Issue
 		for _, issue := range revIssues {
@@ -168,7 +169,7 @@ func Analyse(ctx context.Context, exec Executer, cloner Cloner, configReader Con
 			// 0 for file is generated or 1 for file is not generated.
 			args = []string{"isFileGenerated", pwd, issue.File}
 			out, err := exec.Execute(ctx, args)
-			log.Printf("isFileGenerated output: %s", bytes.TrimSpace(out))
+			logger.With("step", "isFileGenerated").Info(string(bytes.TrimSpace(out)))
 			switch err {
 			case nil:
 				continue // file is generated, ignore the issue

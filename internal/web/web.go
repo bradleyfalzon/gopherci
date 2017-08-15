@@ -3,24 +3,25 @@ package web
 import (
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/bradleyfalzon/gopherci/internal/github"
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 	"github.com/go-chi/chi"
 )
 
 // Web handles general web/html responses (not API hooks).
 type Web struct {
+	logger    logger.Logger
 	db        db.DB
 	gh        *github.GitHub
 	templates *template.Template
 }
 
 // NewWeb returns a new Web instance, or an error.
-func NewWeb(db db.DB, gh *github.GitHub) (*Web, error) {
+func NewWeb(logger logger.Logger, db db.DB, gh *github.GitHub) (*Web, error) {
 	// Initialise html templates
 	templates, err := template.ParseGlob("internal/web/templates/*.tmpl")
 	if err != nil {
@@ -28,6 +29,7 @@ func NewWeb(db db.DB, gh *github.GitHub) (*Web, error) {
 	}
 
 	web := &Web{
+		logger:    logger,
 		db:        db,
 		gh:        gh,
 		templates: templates,
@@ -56,7 +58,7 @@ func (web *Web) errorHandler(w http.ResponseWriter, r *http.Request, code int, d
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(code)
 	if err := web.templates.ExecuteTemplate(w, "error.tmpl", page); err != nil {
-		log.Println("error parsing error template:", err)
+		web.logger.With("error", err).Error("cannot parse error template")
 	}
 }
 
@@ -68,9 +70,11 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger := web.logger.With("analysisID", analysisID)
+
 	analysis, err := web.db.GetAnalysis(int(analysisID))
 	if err != nil {
-		log.Printf("error getting analysisID %v: %v", analysisID, err)
+		logger.With("error", err).Error("cannot get analysis")
 		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get analysis")
 		return
 	}
@@ -82,14 +86,14 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 
 	outputs, err := web.db.AnalysisOutputs(analysis.ID)
 	if err != nil {
-		log.Printf("error getting analysis output for analysis ID %v: %v", analysis.ID, err)
+		logger.With("error", err).Error("cannot get analysis output")
 		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get analysis output")
 		return
 	}
 
 	vcs, err := NewVCS(web.gh, analysis)
 	if err != nil {
-		log.Printf("error getting VCS for analysisID %v: %v", analysisID, err)
+		logger.With("error", err).Error("cannot get analysis VCS")
 		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get VCS")
 		return
 	}
@@ -108,13 +112,13 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 			// when we receive the GitHub event, there's no indication that it's a
 			// new tree. But we can't fetch the diff because there's no history for
 			// this commit so GitHub sends a 404.
-			log.Printf("error getting diff from VCS for analysisID %v: %v", analysisID, err)
+			logger.With("error", err).Error("cannot get diff from VCS")
 		case diffReader != nil:
 			defer diffReader.Close()
 
 			patches, err = DiffIssues(r.Context(), diffReader, analysis.Issues())
 			if err != nil {
-				log.Printf("error reading vcs with analysisID %v: %v", analysisID, err)
+				logger.With("error", err).Error("cannot diff issues from VCS diff")
 				web.errorHandler(w, r, http.StatusInternalServerError, "Could not read VCS")
 				return
 			}
@@ -136,6 +140,6 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := web.templates.ExecuteTemplate(w, "analysis.tmpl", page); err != nil {
-		log.Printf("error parsing analysis template: %v", err)
+		logger.With("error", err).Error("cannot parse analysis template")
 	}
 }

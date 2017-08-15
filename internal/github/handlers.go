@@ -3,7 +3,6 @@ package github
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -42,26 +41,29 @@ func (g *GitHub) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 // WebHookHandler is the net/http handler for github webhooks.
 func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
+	logger := g.logger.With("deliveryID", github.DeliveryID(r))
+
 	payload, err := github.ValidatePayload(r, g.webhookSecret)
 	if err != nil {
-		log.Println("github: failed to validate payload:", err)
+		logger.With("error", err).Error("failed to validate payload")
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	event, err := github.ParseWebHook(github.WebHookType(r), payload)
 	if err != nil {
-		log.Println("github: failed to parse webhook:", err)
+		logger.With("error", err).Error("failed to parse webhook")
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
 	switch e := event.(type) {
 	case *github.InstallationEvent:
-		log.Printf("github: integration event: %v, installation id: %v", *e.Action, *e.Installation.ID)
+		logger = logger.With("installationID", *e.Installation.ID).With("event", "InstallationEvent")
 		err = g.integrationInstallationEvent(e)
 	case *github.PushEvent:
 		var installation *Installation
+		logger = logger.With("installationID", *e.Installation.ID).With("event", "PushEvent")
 		if installation, err = g.NewInstallation(*e.Installation.ID); err != nil {
 			break
 		}
@@ -77,9 +79,9 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 			err = &ignoreEvent{reason: ignorePrivateRepos}
 			break
 		}
-		log.Printf("github: push event: installation id: %v", *e.Installation.ID)
 		g.queuePush <- e
 	case *github.PullRequestEvent:
+		logger = logger.With("installationID", *e.Installation.ID).With("event", "PullRequestEvent").With("action", *e.Action)
 		if err = checkPRAction(e); err != nil {
 			break
 		}
@@ -106,7 +108,6 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 			err = &ignoreEvent{reason: ignoreNoGoFiles}
 			break
 		}
-		log.Printf("github: pull request event: %v, installation id: %v", *e.Action, *e.Installation.ID)
 		g.queuePush <- e
 	default:
 		err = &ignoreEvent{reason: ignoreUnknownEvent}
@@ -115,11 +116,12 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 	switch err.(type) {
 	case nil:
 	case *ignoreEvent:
-		log.Printf("github: ignoring event %T: %v", event, err)
+		logger.With("error", err).Info("ignoring event")
 	default:
-		log.Println("github: event handler error:", err)
+		logger.With("error", err).Error("cannot handle event")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+	logger.Info("received event")
 }
 
 type ignoreReason int
@@ -325,7 +327,9 @@ type AnalyseConfig struct {
 // Analyse analyses a GitHub event. If cfg.pr is not 0, comments will also be
 // written on the Pull Request.
 func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
-	log.Printf("analysing config: %#v", cfg)
+	logger := g.logger.With("installationID", cfg.installationID)
+	logger = logger.With("owner", cfg.owner).With("repo", cfg.repo).With("ref", cfg.sha).With("pr", cfg.pr)
+	logger.Info("analysing")
 
 	// For functions that support context, set a maximum execution time.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
@@ -352,11 +356,12 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	if err != nil {
 		return errors.Wrap(err, "error starting analysis")
 	}
-	log.Println("analysisID:", analysis.ID)
+	logger = logger.With("analysisID", analysis.ID)
+	logger.Info("created new analysis record")
 	analysisURL := analysis.HTMLURL(g.gciBaseURL)
 
 	// Set the CI status API to pending
-	statusAPIReporter := NewStatusAPIReporter(install.client, cfg.statusesURL, cfg.statusesContext, analysisURL)
+	statusAPIReporter := NewStatusAPIReporter(logger, install.client, cfg.statusesURL, cfg.statusesContext, analysisURL)
 	err = statusAPIReporter.SetStatus(ctx, StatusStatePending, "In progress")
 	if err != nil {
 		return err
@@ -373,11 +378,11 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 
 		if err != nil {
 			if serr := statusAPIReporter.SetStatus(ctx, StatusStateError, "Internal error"); serr != nil {
-				log.Printf("could not set status to error for analysisID %v: %s", analysis.ID, serr)
+				logger.With("error", serr).Error("could not set status API to error")
 			}
 
 			if ferr := g.db.FinishAnalysis(analysis.ID, db.AnalysisStatusError, nil); ferr != nil {
-				log.Printf("could not set analysis to error for analysisID %v: %s", analysis.ID, ferr)
+				logger.With("error", ferr).Error("could not set analysis to error")
 			}
 		}
 
@@ -402,14 +407,14 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	}
 	defer func() {
 		if err := executer.Stop(ctx); err != nil {
-			log.Printf("warning: could not stop executer: %v", err)
+			logger.With("error", err).Error("could not stop executer")
 		}
 	}()
 
 	// Wrap it with our DB as it wants to record the results.
 	executer = g.db.ExecRecorder(analysis.ID, executer)
 
-	err = analyser.Analyse(ctx, executer, cfg.cloner, configReader, cfg.refReader, acfg, analysis)
+	err = analyser.Analyse(ctx, logger, executer, cfg.cloner, configReader, cfg.refReader, acfg, analysis)
 	if err != nil {
 		return errors.Wrap(err, "could not run analyser")
 	}

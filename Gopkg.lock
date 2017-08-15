@@ -44,6 +44,12 @@
   version = "v0.2"
 
 [[projects]]
+  name = "github.com/certifi/gocertifi"
+  packages = ["."]
+  revision = "3fd9e1adb12b72d2f3f82191d49be9b93c69f67c"
+  version = "2017.07.27"
+
+[[projects]]
   name = "github.com/dgrijalva/jwt-go"
   packages = ["."]
   revision = "d2709f9f1f31ebcda9651b03077758c1f3a0018c"
@@ -67,10 +73,22 @@
   version = "v0.3.1"
 
 [[projects]]
+  name = "github.com/evalphobia/logrus_sentry"
+  packages = ["."]
+  revision = "9f8f2d05a621e616d9341ac75374eb8402ae0630"
+  version = "v0.4.1"
+
+[[projects]]
   branch = "master"
   name = "github.com/fsouza/go-dockerclient"
   packages = ["."]
   revision = "8462902e31da1644862169cd142c126223ecb38e"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/getsentry/raven-go"
+  packages = ["."]
+  revision = "d175f85701dfbf44cb0510114c9943e665e60907"
 
 [[projects]]
   name = "github.com/go-chi/chi"
@@ -249,6 +267,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "15b35dad52244b960d126be242aaf6a334a84d28a43ec606277671fb28ee66b4"
+  inputs-digest = "9f895e48b0f7c281dd14a0bca17d8427e5535ccbbd72f018272fb0c4186093db"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -1,5 +1,7 @@
 deps:
 	dep ensure
+	mkdir -p ${GOPATH}/src/github.com/Sirupsen
+	mv vendor/github.com/Sirupsen/logrus ${GOPATH}/src/github.com/Sirupsen
 
 install:
 	go install

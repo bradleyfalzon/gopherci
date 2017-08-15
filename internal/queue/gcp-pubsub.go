@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"log"
 	"sync"
 	"time"
 
 	xContext "golang.org/x/net/context"
 
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 
@@ -36,6 +36,7 @@ const (
 
 // GCPPubSubQueue is a queue using Google Compute Platform's PubSub product.
 type GCPPubSubQueue struct {
+	logger       logger.Logger
 	topic        *pubsub.Topic
 	subscription *pubsub.Subscription
 }
@@ -44,8 +45,8 @@ var cxnTimeout = 15 * time.Second
 
 // NewGCPPubSubQueue creates connects to Google Pub/Sub with a topic and
 // subscriber in a one-to-one architecture.
-func NewGCPPubSubQueue(ctx context.Context, projectID, topicName string) (*GCPPubSubQueue, error) {
-	q := &GCPPubSubQueue{}
+func NewGCPPubSubQueue(ctx context.Context, logger logger.Logger, projectID, topicName string) (*GCPPubSubQueue, error) {
+	q := &GCPPubSubQueue{logger: logger}
 
 	if projectID == "" {
 		return nil, errors.New("projectID must not be empty")
@@ -58,7 +59,7 @@ func NewGCPPubSubQueue(ctx context.Context, projectID, topicName string) (*GCPPu
 
 	client, err := pubsub.NewClient(cxnCtx, projectID)
 	if err != nil {
-		return nil, errors.Wrap(err, "NewGCPPubSubQueue: could not create client")
+		return nil, errors.Wrap(err, "could not create client")
 	}
 
 	if topicName == "" {
@@ -66,21 +67,21 @@ func NewGCPPubSubQueue(ctx context.Context, projectID, topicName string) (*GCPPu
 	}
 	topicName += "-v" + version
 
-	log.Printf("NewGCPPubSubQueue: creating topic %q", topicName)
+	logger.Infof("creating topic %q", topicName)
 	q.topic, err = client.CreateTopic(cxnCtx, topicName)
 	if code := grpc.Code(err); code != codes.OK && code != codes.AlreadyExists {
-		return nil, errors.Wrap(err, "NewGCPPubSubQueue: could not create topic")
+		return nil, errors.Wrap(err, "could not create topic")
 	}
 
 	subName := topicName + "-" + defaultSubName
 
-	log.Printf("NewGCPPubSubQueue: creating subscription %q", subName)
+	logger.Infof("creating subscription %q", subName)
 	q.subscription, err = client.CreateSubscription(cxnCtx, subName, pubsub.SubscriptionConfig{
 		Topic:       q.topic,
 		AckDeadline: 0,
 	})
 	if code := grpc.Code(err); code != codes.OK && code != codes.AlreadyExists {
-		return nil, errors.Wrap(err, "NewGCPPubSubQueue: could not create subscription")
+		return nil, errors.Wrap(err, "could not create subscription")
 	}
 
 	q.subscription.ReceiveSettings.MaxOutstandingMessages = 1 // limit concurrency
@@ -99,13 +100,15 @@ func (q GCPPubSubQueue) Wait(ctx context.Context, wg *sync.WaitGroup, queuePush 
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("GCPPubSubQueue: job waiter exiting")
+				q.logger.Info("job waiter exiting")
 				q.topic.Stop()
 				wg.Done()
 				return
 			case job := <-queuePush:
-				log.Println("GCPPubSubQueue: job waiter got message, queuing...")
-				q.queue(ctx, job)
+				q.logger.Info("job waiter got message, queuing...")
+				if err := q.queue(ctx, job); err != nil {
+					q.logger.With("error", err).Error("could not queue job")
+				}
 			}
 		}
 	}()
@@ -114,7 +117,7 @@ func (q GCPPubSubQueue) Wait(ctx context.Context, wg *sync.WaitGroup, queuePush 
 	wg.Add(1)
 	go func() {
 		q.receive(ctx, f)
-		log.Println("GCPPubSubQueue: job receiver exiting")
+		q.logger.Info("job receiver exiting")
 		wg.Done()
 	}()
 }
@@ -124,7 +127,7 @@ func (q *GCPPubSubQueue) queue(ctx context.Context, job interface{}) error {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	if err := enc.Encode(container{job}); err != nil {
-		return errors.Wrap(err, "GCPPubSubQueue: could not gob encode job")
+		return errors.Wrap(err, "could not gob encode job")
 	}
 
 	var (
@@ -139,13 +142,13 @@ func (q *GCPPubSubQueue) queue(ctx context.Context, job interface{}) error {
 		if err == nil {
 			break
 		}
-		log.Printf("GCPPubSubQueue: failed publishing message attempt %v of %v, error: %v", i, maxAttempts, err)
+		q.logger.With("error", err).Infof("failed publishing message attempt %v of %v", i, maxAttempts)
 		time.Sleep(time.Duration(i) * time.Second)
 	}
 	if err != nil {
-		return errors.Wrap(err, "GCPPubSubQueue: could not publish job")
+		return errors.Wrap(err, "could not publish job")
 	}
-	log.Println("GCPPubSubQueue: published a message with a message ID:", msgID)
+	q.logger.With("messageID", msgID).Info("published job")
 
 	return nil
 }
@@ -157,27 +160,29 @@ type container struct {
 // receive calls sub.Receive, which blocks forever waiting for new jobs.
 func (q *GCPPubSubQueue) receive(ctx context.Context, f func(interface{})) {
 	err := q.subscription.Receive(ctx, func(ctx xContext.Context, msg *pubsub.Message) {
-		log.Printf("GCPPubSubQueue: processing ID %v, published at %v", msg.ID, msg.PublishTime)
+		logger := q.logger.With("messageID", msg.ID)
+
+		logger.With("publishTime", msg.PublishTime).Info("processing job published")
 
 		// Acknowledge the job now, anything else that could fail by this instance
 		// will probably fail for others.
 		msg.Ack()
-		log.Printf("GCPPubSubQueue: ack'd ID %v", msg.ID)
+		logger.Info("acknowledged job")
 
 		reader := bytes.NewReader(msg.Data)
 		dec := gob.NewDecoder(reader)
 
 		var job container
 		if err := dec.Decode(&job); err != nil {
-			log.Println("GCPPubSubQueue: could not decode job:", err)
+			logger.With("error", err).Errorf("could not decode job")
 			return
 		}
-		log.Printf("GCPPubSubQueue: process ID %v", msg.ID)
+		logger.Info("processing")
 
 		f(job.Job)
 	})
 	if err != nil && err != context.Canceled {
-		log.Printf("GCPPubSubQueue: could not receive on subscription: %v", err)
+		q.logger.With("error", err).Error("could not receive on subscription")
 	}
 }
 
@@ -191,11 +196,11 @@ func (q *GCPPubSubQueue) delete(ctx context.Context) {
 		}
 		err = sub.Delete(ctx)
 		if err != nil {
-			log.Println("GCPPubSubQueue: delete subscription error:", err)
+			q.logger.With("error", err).Error("could not delete subscription")
 		}
 	}
 	err := q.topic.Delete(ctx)
 	if err != nil {
-		log.Println("GCPPubSubQueue: delete topic error:", err)
+		q.logger.With("error", err).Error("could not delete topic")
 	}
 }

@@ -5,11 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
@@ -34,7 +34,7 @@ func NewSQLDB(sqlDB *sql.DB, driverName string) (*SQLDB, error) {
 }
 
 // Cleanup runs background cleanup tasks, such as purging old records.
-func (db *SQLDB) Cleanup(ctx context.Context) {
+func (db *SQLDB) Cleanup(ctx context.Context, logger logger.Logger) {
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 
@@ -45,7 +45,7 @@ func (db *SQLDB) Cleanup(ctx context.Context) {
 		case <-ticker.C:
 			_, err := db.sqlx.Exec(`DELETE o FROM outputs o JOIN analysis a ON(o.analysis_id = a.id) WHERE a.created_at < DATE_SUB(NOW(), INTERVAL 30 DAY);`)
 			if err != nil {
-				log.Println("SQLDB cleanup outputs error:", err)
+				logger.With("error", err).Error("SQLDB cleanup outputs error")
 			}
 		}
 	}

@@ -6,11 +6,13 @@ import (
 	"github.com/bradleyfalzon/ghinstallation"
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 	"github.com/sethgrid/pester"
 )
 
 // GitHub is the type gopherci uses to interract with github.com.
 type GitHub struct {
+	logger         logger.Logger
 	db             db.DB
 	analyser       analyser.Analyser
 	queuePush      chan<- interface{}
@@ -27,8 +29,9 @@ type GitHub struct {
 // integrationID is the GitHub Integration ID (not installation ID).
 // integrationKey is the key for the integrationID provided to you by GitHub
 // during the integration registration.
-func New(analyser analyser.Analyser, db db.DB, queuePush chan<- interface{}, integrationID int, integrationKey []byte, webhookSecret, gciBaseURL string) (*GitHub, error) {
+func New(logger logger.Logger, analyser analyser.Analyser, db db.DB, queuePush chan<- interface{}, integrationID int, integrationKey []byte, webhookSecret, gciBaseURL string) (*GitHub, error) {
 	g := &GitHub{
+		logger:         logger,
 		analyser:       analyser,
 		db:             db,
 		queuePush:      queuePush,
