@@ -34,7 +34,7 @@ func main() {
 	// Load environment from .env, ignore errors as it's optional and dev only
 	_ = godotenv.Load()
 
-	rootLogger := logger.New(os.Stdout, "nobuild", os.Getenv("LOGGER_ENV"), os.Getenv("LOGGER_SENTRY_DSN"))
+	rootLogger := logger.New(os.Stdout, build, os.Getenv("LOGGER_ENV"), os.Getenv("LOGGER_SENTRY_DSN"))
 	logger := rootLogger.With("area", "main")
 	logger.With("build", build).Info("starting gopherci")
 
