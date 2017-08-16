@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/bradleyfalzon/gopherci/internal/analyser"
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 	"github.com/google/go-github/github"
 	"github.com/pkg/errors"
 )
@@ -107,6 +107,7 @@ const (
 // StatusAPIReporter uses the GitHub Statuses API to report build status, such
 // as success or failure.
 type StatusAPIReporter struct {
+	logger    logger.Logger
 	client    *github.Client
 	statusURL string
 	context   string
@@ -116,8 +117,9 @@ type StatusAPIReporter struct {
 var _ analyser.Reporter = &StatusAPIReporter{}
 
 // NewStatusAPIReporter returns a StatusAPIReporter.
-func NewStatusAPIReporter(client *github.Client, statusURL, context, targetURL string) *StatusAPIReporter {
+func NewStatusAPIReporter(logger logger.Logger, client *github.Client, statusURL, context, targetURL string) *StatusAPIReporter {
 	return &StatusAPIReporter{
+		logger:    logger,
 		client:    client,
 		statusURL: statusURL,
 		context:   context,
@@ -136,7 +138,7 @@ func (r *StatusAPIReporter) SetStatus(ctx context.Context, status StatusState, d
 		string(status), r.targetURL, description, r.context,
 	}
 
-	log.Printf("Setting %v state: %q, context: %q, description: %q", r.statusURL, status, r.context, description)
+	r.logger.Infof("Setting %v state: %q, context: %q, description: %q", r.statusURL, status, r.context, description)
 
 	js, err := json.Marshal(&s)
 	if err != nil {

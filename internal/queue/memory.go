@@ -2,22 +2,24 @@ package queue
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
+
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 )
 
 const pollInterval = 500 * time.Millisecond
 
 // MemoryQueue is an in memory queue of infinite size.
 type MemoryQueue struct {
-	mu    sync.Mutex // protects queue
-	queue []interface{}
+	logger logger.Logger
+	mu     sync.Mutex // protects queue
+	queue  []interface{}
 }
 
 // NewMemoryQueue creates a new in memory queue
-func NewMemoryQueue() *MemoryQueue {
-	return &MemoryQueue{}
+func NewMemoryQueue(logger logger.Logger) *MemoryQueue {
+	return &MemoryQueue{logger: logger}
 }
 
 // Wait waits for messages on queuePush and adds them to the queue. New
@@ -30,11 +32,11 @@ func (q *MemoryQueue) Wait(ctx context.Context, wg *sync.WaitGroup, queuePush <-
 		for {
 			select {
 			case <-ctx.Done():
-				log.Println("MemoryQueue job waiter exiting")
+				q.logger.Info("job waiter exiting")
 				wg.Done()
 				return
 			case job := <-queuePush:
-				log.Println("MemoryQueue job waiter got message, queuing...")
+				q.logger.Info("job waiter got message, queuing...")
 				q.mu.Lock()
 				q.queue = append(q.queue, job)
 				q.mu.Unlock()
@@ -46,7 +48,7 @@ func (q *MemoryQueue) Wait(ctx context.Context, wg *sync.WaitGroup, queuePush <-
 	wg.Add(1)
 	go func() {
 		q.receive(ctx, f)
-		log.Println("GCPPubSubQueue job receiver exiting")
+		q.logger.Info("job receiver exiting")
 		wg.Done()
 	}()
 }
@@ -57,7 +59,7 @@ func (q *MemoryQueue) receive(ctx context.Context, f func(interface{})) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("listen stopping")
+			q.logger.Info("listen stopping")
 			ticker.Stop()
 			return
 		case <-ticker.C:

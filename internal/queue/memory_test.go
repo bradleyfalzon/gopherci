@@ -2,10 +2,11 @@ package queue
 
 import (
 	"context"
-	"log"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 )
 
 func TestMemoryQueue(t *testing.T) {
@@ -15,7 +16,7 @@ func TestMemoryQueue(t *testing.T) {
 		c           = make(chan interface{})
 		haveJob     bool
 	)
-	q := NewMemoryQueue()
+	q := NewMemoryQueue(logger.Testing())
 
 	f := func(interface{}) {
 		haveJob = true
@@ -24,9 +25,9 @@ func TestMemoryQueue(t *testing.T) {
 	q.Wait(ctx, &wg, c, f)
 	c <- 1
 
-	log.Println("waiting")
+	t.Log("waiting")
 	time.Sleep(pollInterval * 2)
-	log.Println("waited")
+	t.Log("waited")
 
 	if !haveJob {
 		t.Errorf("did not process job")

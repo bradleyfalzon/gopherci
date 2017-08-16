@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
+
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 )
 
 // shuttingDown tracks whether this instance of GopherCI is shutting down
@@ -16,7 +17,7 @@ var shuttingDown bool
 
 // SignalHandler listens for a shutdown signal and calls cancel, if
 // multiple signals are received in short succession, forcible quit.
-func SignalHandler(cancel context.CancelFunc, srv *http.Server) {
+func SignalHandler(logger logger.Logger, cancel context.CancelFunc, srv *http.Server) {
 	// chan size 2 as multiple interrupts is force quit (supports ^C for dev)
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, os.Interrupt)
@@ -25,11 +26,11 @@ func SignalHandler(cancel context.CancelFunc, srv *http.Server) {
 	for {
 		s := <-c
 		if time.Since(lastSignal) < time.Second {
-			log.Fatal("Two signals in short succession, forcing quit")
+			logger.Fatal("Two signals in short succession, forcing quit")
 		}
 
 		lastSignal = time.Now()
-		log.Printf("Received %v, preparing to shutdown", s)
+		logger.Infof("Received %v, preparing to shutdown", s)
 		shuttingDown = true
 		srv.Shutdown(context.Background())
 		cancel()

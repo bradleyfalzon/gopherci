@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 )
 
 type mockExecuter struct {
@@ -107,7 +108,7 @@ index 0000000..6362395
 		},
 	}
 
-	err := Analyse(context.Background(), analyser, cloner, configReader, refReader, cfg, analysis)
+	err := Analyse(context.Background(), logger.Testing(), analyser, cloner, configReader, refReader, cfg, analysis)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}

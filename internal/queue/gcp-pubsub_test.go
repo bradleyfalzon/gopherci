@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 	"github.com/pkg/errors"
 )
 
@@ -27,7 +28,7 @@ func TestGCPPubSubQueue(t *testing.T) {
 		topic       = fmt.Sprintf("%s-unit-tests-%v", defaultTopicName, time.Now().Unix())
 		have        interface{}
 	)
-	q, err := NewGCPPubSubQueue(ctx, projectID, topic)
+	q, err := NewGCPPubSubQueue(ctx, logger.Testing(), projectID, topic)
 	if err != nil {
 		t.Fatal("unexpected error:", err)
 	}
@@ -76,7 +77,7 @@ func TestGCPPubSubQueue_timeout(t *testing.T) {
 		ctx   = context.Background()
 		topic = fmt.Sprintf("%s-unit-tests-%v", defaultTopicName, time.Now().Unix())
 	)
-	_, err := NewGCPPubSubQueue(ctx, projectID, topic)
+	_, err := NewGCPPubSubQueue(ctx, logger.Testing(), projectID, topic)
 
 	have := errors.Cause(err)
 	if want := context.DeadlineExceeded; have != want {

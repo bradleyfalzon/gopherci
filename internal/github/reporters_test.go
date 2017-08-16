@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
+	"github.com/bradleyfalzon/gopherci/internal/logger"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-github/github"
 )
@@ -161,7 +162,7 @@ func TestStatusAPIReporter_SetStatus(t *testing.T) {
 		Context:     "context",
 	}
 
-	r := NewStatusAPIReporter(github.NewClient(nil), statusURL, want.Context, want.TargetURL)
+	r := NewStatusAPIReporter(logger.Testing(), github.NewClient(nil), statusURL, want.Context, want.TargetURL)
 	r.SetStatus(context.Background(), StatusStatePending, want.Description)
 
 	if diff := cmp.Diff(have, want); diff != "" {
