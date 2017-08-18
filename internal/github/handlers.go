@@ -106,6 +106,10 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 			err = &ignoreEvent{reason: ignorePrivateRepos}
 			break
 		}
+		err = checkPRAccessible(r.Context(), installation, *e.Repo.Owner.Login, *e.Repo.Name, *e.Number)
+		if err != nil {
+			break
+		}
 		ok, err = checkPRAffectsGo(r.Context(), installation, *e.Repo.Owner.Login, *e.Repo.Name, *e.Number)
 		if err != nil {
 			break
@@ -139,6 +143,7 @@ const (
 	ignoreNoInstallation
 	ignoreNoGoFiles
 	ignorePrivateRepos
+	ignorePRInaccessible
 )
 
 // ignoreEvent indicates the event should be accepted but ignored.
@@ -162,6 +167,8 @@ func (e *ignoreEvent) Error() string {
 		return "no go files affected"
 	case ignorePrivateRepos:
 		return "private repositories are not yet supported"
+	case ignorePRInaccessible:
+		return "pull request is inaccessible: " + e.extra
 	}
 	return e.extra
 }
@@ -202,6 +209,17 @@ func checkPRAffectsGo(ctx context.Context, installation *Installation, owner, re
 		opt.Page = resp.NextPage
 	}
 	return false, nil
+}
+
+// checkPRAccessible checks to ensure the pull request is accessible. GitHub
+// may have marked a repository as suspicious where some API requests are no
+// longer available.
+func checkPRAccessible(ctx context.Context, installation *Installation, owner, repo string, number int) error {
+	_, resp, err := installation.client.PullRequests.Get(ctx, owner, repo, number)
+	if err != nil && resp != nil && resp.StatusCode == http.StatusNotFound {
+		return &ignoreEvent{reason: ignorePRInaccessible, extra: resp.Status}
+	}
+	return nil
 }
 
 // checkPushAffectsGo returns true if the event modifies, adds or removes Go files.

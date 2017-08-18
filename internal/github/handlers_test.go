@@ -285,6 +285,9 @@ func TestWebhookHandler(t *testing.T) {
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.RequestURI {
+		case "/repos/owner/repo/pulls/2": // checkPRAccessible
+		case "/repos/owner/repo/pulls/3": // checkPRAccessible
+		case "/repos/owner/repo/pulls/4": // checkPRAccessible
 		case "/installations/1/access_tokens":
 			// respond with any token to installation transport
 			fmt.Fprintln(w, "{}")
@@ -441,6 +444,51 @@ func TestCheckPRAffectsGo(t *testing.T) {
 
 	if want := true; have != want {
 		t.Errorf("have: %v, want: %v", have, want)
+	}
+}
+
+func TestCheckPRAccessible(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.RequestURI {
+		case "/installations/1/access_tokens":
+			// respond with any token to installation transport
+			fmt.Fprintln(w, "{}")
+		case "/repos/owner/repo/pulls/2":
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintln(w, `{
+    "message": "Not Found",
+    "documentation_url": "https://developer.github.com/v3"
+}`)
+		default:
+			t.Fatalf(r.RequestURI)
+		}
+	}))
+	defer ts.Close()
+
+	const installationID = 1
+
+	// Get installation
+	g, _, memDB := setup(t)
+	g.baseURL = ts.URL
+	_ = memDB.AddGHInstallation(installationID, 2, 3)
+	memDB.EnableGHInstallation(installationID)
+	installation, err := g.NewInstallation(installationID)
+	if err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	err = checkPRAccessible(context.Background(), installation, "owner", "repo", 2)
+	ierr, ok := err.(*ignoreEvent)
+	if !ok {
+		t.Errorf("unexpected error type %T want: *ignoreEvent", err)
+	}
+
+	if want := ignorePRInaccessible; ierr.reason != want {
+		t.Errorf("unexpected error reason %v want: %v", ierr.reason, want)
+	}
+
+	if want := "404 Not Found"; ierr.extra != want {
+		t.Errorf("unexpected error extra %v want: %v", ierr.extra, want)
 	}
 }
 
