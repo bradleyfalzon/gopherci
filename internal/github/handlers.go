@@ -52,6 +52,12 @@ func (g *GitHub) WebHookHandler(w http.ResponseWriter, r *http.Request) {
 
 	event, err := github.ParseWebHook(github.WebHookType(r), payload)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "unknown X-Github-Event in message: integration_installation") {
+			// Ignore error message about deprecated integration_installation and integration_installation_repositories events.
+			// Remove after November 22nd 2017.
+			// https://github.com/google/go-github/issues/627#issuecomment-304146513
+			return
+		}
 		logger.With("error", err).Error("failed to parse webhook")
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
