@@ -1,7 +1,6 @@
 language: go
 go:
-    # https://github.com/bradleyfalzon/gopherci/pull/102#pullrequestreview-52975203
-    - 1.9rc2
+    - 1.x
 # sudo for docker service
 # https://docs.travis-ci.com/user/docker/
 sudo: required
