@@ -671,10 +671,6 @@ func TestAnalyse(t *testing.T) {
 	)
 
 	var (
-		expectedCmtBody   = "Name: error"
-		expectedCmtPath   = "main.go"
-		expectedCmtPos    = 1
-		expectedCmtSHA    = "error"
 		expectedOwner     = "owner"
 		expectedRepo      = "repo"
 		expectedPR        = 3
@@ -693,22 +689,20 @@ func TestAnalyse(t *testing.T) {
 				fmt.Fprintln(w, "[]")
 				break
 			}
-			expected := github.PullRequestComment{
-				Body:     github.String(expectedCmtBody),
-				Path:     github.String(expectedCmtPath),
-				Position: github.Int(expectedCmtPos),
-				CommitID: github.String(expectedCmtSHA),
-			}
-			var comment github.PullRequestComment
-			err := decoder.Decode(&comment)
+		case fmt.Sprintf("/repos/%v/%v/pulls/%v/reviews", expectedOwner, expectedRepo, expectedPR):
+			// Integration test handles the details, we just want to ensure a
+			// review was posted.
+			var have github.PullRequestReviewRequest
+			err := decoder.Decode(&have)
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Errorf("unexpected error: %v", err)
+				break
 			}
-			if !reflect.DeepEqual(expected, comment) {
-				t.Fatalf("expected cmt:\n%#v\ngot:\n%#v", expected, comment)
-			} else {
-				postedComment = true
+			if want := 1; len(have.Comments) != want {
+				t.Errorf("have review comments count: %v, want: %v", len(have.Comments), want)
+				break
 			}
+			postedComment = true
 		default:
 			t.Logf(r.RequestURI)
 		}
@@ -740,7 +734,7 @@ func TestAnalyse(t *testing.T) {
 		owner:           expectedOwner,
 		repo:            expectedRepo,
 		pr:              expectedPR,
-		sha:             expectedCmtSHA,
+		sha:             "abc123",
 	}
 
 	err := g.Analyse(cfg)
