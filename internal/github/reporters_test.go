@@ -323,21 +323,17 @@ func TestPRReviewReporter_report(t *testing.T) {
 
 	var tests = map[string]struct {
 		issues []db.Issue
-		want   github.PullRequestReviewRequest
+		want   *github.PullRequestReviewRequest
 	}{
 		"noissues": {
 			issues: nil,
-			want: github.PullRequestReviewRequest{
-				Event:    github.String("APPROVE"),
-				CommitID: github.String(sha),
-				Comments: nil,
-			},
+			want:   nil,
 		},
 		"issues": {
 			issues: []db.Issue{
 				{Issue: "body", Path: "path.go", HunkPos: 2},
 			},
-			want: github.PullRequestReviewRequest{
+			want: &github.PullRequestReviewRequest{
 				Event:    github.String("COMMENT"),
 				CommitID: github.String(sha),
 				Comments: []*github.DraftReviewComment{
@@ -352,6 +348,7 @@ func TestPRReviewReporter_report(t *testing.T) {
 	}
 
 	for desc, test := range tests {
+		var have *github.PullRequestReviewRequest
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			decoder := json.NewDecoder(r.Body)
 			switch r.RequestURI {
@@ -359,13 +356,9 @@ func TestPRReviewReporter_report(t *testing.T) {
 				// Call to ListComments
 				fmt.Fprintln(w, "[]")
 			case fmt.Sprintf("/repos/%v/%v/pulls/%v/reviews", owner, repo, pr):
-				var have github.PullRequestReviewRequest
 				err := decoder.Decode(&have)
 				if err != nil {
 					t.Errorf("%v: unexpected error: %v", desc, err)
-				}
-				if diff := cmp.Diff(have, test.want); diff != "" {
-					t.Errorf("%v: expected review (-have +want)%s", desc, diff)
 				}
 			default:
 				t.Logf(r.RequestURI)
@@ -379,6 +372,10 @@ func TestPRReviewReporter_report(t *testing.T) {
 		err := r.Report(context.Background(), test.issues)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if diff := cmp.Diff(have, test.want); diff != "" {
+			t.Errorf("%v: expected review (-have +want)%s", desc, diff)
 		}
 	}
 }
