@@ -278,8 +278,8 @@ func (r *InlineCommitCommentReporter) Report(ctx context.Context, issues []db.Is
 }
 
 // PRReviewReporter is a analyser.Reporter that creates a pull request review
-// on a given owner, repo, pr and commit hash. Sets review status to APPROVE
-// if there are no comments or COMMENT otherwise.
+// on a given owner, repo, pr and commit hash. Sets review status to COMMENT
+// if there are comments.
 type PRReviewReporter struct {
 	client *github.Client
 	owner  string
@@ -310,6 +310,10 @@ func (r *PRReviewReporter) Report(ctx context.Context, issues []db.Issue) error 
 
 	_, issues = analyser.Suppress(issues, analyser.MaxIssueComments)
 
+	if len(issues) == 0 {
+		return nil
+	}
+
 	var comments []*github.DraftReviewComment
 	for _, issue := range issues {
 		comments = append(comments, &github.DraftReviewComment{
@@ -319,13 +323,8 @@ func (r *PRReviewReporter) Report(ctx context.Context, issues []db.Issue) error 
 		})
 	}
 
-	event := "APPROVE"
-	if len(comments) > 0 {
-		event = "COMMENT"
-	}
-
 	_, _, err = r.client.PullRequests.CreateReview(ctx, r.owner, r.repo, r.number, &github.PullRequestReviewRequest{
-		Event:    github.String(event),
+		Event:    github.String("COMMENT"),
 		CommitID: github.String(r.commit),
 		Comments: comments,
 	})

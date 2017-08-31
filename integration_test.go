@@ -410,18 +410,14 @@ func TestGitHubComments_none(t *testing.T) {
 
 	time.Sleep(5 * time.Second) // wait for comments to appear (hopefully none)
 
-	// Make sure review was completed
+	// Make sure no review was completed
 	reviews, _, err := it.github.PullRequests.ListReviews(ctx, it.owner, it.repo, *pr.Number, nil)
 	if err != nil {
 		t.Fatalf("could not get pull request reviews: %v", err)
 	}
 
-	if want := 1; len(reviews) != want {
+	if want := 0; len(reviews) != want {
 		t.Fatalf("have %v reviews want %v", len(reviews), want)
-	}
-
-	if want := "APPROVED"; reviews[0].GetState() != want {
-		t.Fatalf("have %v review state want %v", reviews[0].GetState(), want)
 	}
 
 	// Make sure no comments appear
