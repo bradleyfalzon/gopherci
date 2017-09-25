@@ -16,10 +16,11 @@ You'll need:
 
 - Go workspace
 - MySQL server
+    - The requirements are very light, just create a database and a user that has access to it (or use root)
     - Configure .env with connection details
     - Migrations are handled on start up, and are stored in the migrations directory
     - To migrate down, run `gopherci down`
-- Web server with public access (or via ngrok)
+- Ability to accept HTTP/HTTPS requests from GitHub (such as existing public facing server, ngrok, etc)
 
 The following interfaces have alternative implementations that can be used
 instead of the default:
@@ -32,11 +33,11 @@ instead of the default:
 
 # Test GitHub Integration
 
-- Register a new GitHub Integration with the following:
+- Register a new GitHub App with the following:
     - Homepage URL: https://example.com/subdir/
     - Callback URL: https://example.com/subdir/gh/callback
-    - Web hook URL: https://example.com/subdir/gh/webhook
-    - Web hook secret: shared secret
+    - Webhook URL: https://example.com/subdir/gh/webhook
+    - Webhook secret: shared secret
     - Permissions
         - Repository metadata: Read-only
             - Repository event (remove public information when project change to private or deleted #22)
@@ -50,9 +51,11 @@ instead of the default:
     - Generate private key, save it somewhere accessible to GopherCI and set the .env file or environment
     - Record the integration id in the .env file or environment
 - Start GopherCI
-- Install the GitHub integration
-- GopherCI should then receive the web hook
-- Create a test repo
+- Install the GitHub App on your account, limiting its permissions to a test repository
+- GopherCI should then receive the integration installation event
+- Manually enable to repository in the database `UPDATE gh_installations SET enabled_at = NOW() WHERE installation_id = <id>`
+- Create a PR or push event on a repository that has the test integration installed
+- GopherCI should then receive and process the event
 
 # Integration Tests
 
@@ -62,3 +65,19 @@ and personal access token, for this reason it's recommended to use a test accoun
 added to your profile, and to ensure the personal access token has minimal access.
 
 Additionally GCPPubSub integration tests require a Google Service Account, see Development Environment.
+
+# Adding a new tool
+
+GopherCI currently (until https://github.com/bradleyfalzon/gopherci/issues/8 is resolved) runs all tools configured
+in the database. To add a new tool:
+
+- Choose a tool that:
+    - has low false positives, and
+    - issues raised are real problems, and
+    - outputs in the format: `filename.go:line:colum issue`
+- Configure a development environment with the Docker analyser
+- Clone https://github.com/gopherci/gopherci-env
+- Add the tool to the Dockerfile and build a new image as per repo instructions
+- Add the tool to the GopherCI migrations https://github.com/bradleyfalzon/gopherci/tree/master/migrations
+- Start GopherCI, the migrations will automatically run
+- Create a PR or push event on a repository that has the test integration installed
