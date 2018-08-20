@@ -10,19 +10,19 @@ import (
 // DB interface provides access to a persistent database.
 type DB interface {
 	// AddGHInstallation records a new installation.
-	AddGHInstallation(installationID, accountID, senderID int) error
+	AddGHInstallation(installationID, accountID, senderID int64) error
 	// RemoveGHInstallation removes an installation.
-	RemoveGHInstallation(installationID int) error
+	RemoveGHInstallation(installationID int64) error
 	// GetGHInstallation returns an installation for a given installationID, returns
 	// nil if no installation was found, or an error occurs.
-	GetGHInstallation(installationID int) (*GHInstallation, error)
+	GetGHInstallation(installationID int64) (*GHInstallation, error)
 	// ListTools returns all tools. Returns nil if no tools were found, error will
 	// be non-nil if an error occurs.
 	ListTools() ([]Tool, error)
 	// StartAnalysis records a new analysis. RequestNumber is a GitHub Pull Request
 	// ID (or Merge Request) and may be 0 for none, if 0 commitTo must be set,
 	// but commitFrom may be blank if this is the first push.
-	StartAnalysis(ghInstallationID, repositoryID int, commitFrom, commitTo string, requestNumber int) (*Analysis, error)
+	StartAnalysis(ghInstallationID, repositoryID int64, commitFrom, commitTo string, requestNumber int) (*Analysis, error)
 	// FinishAnalysis marks a status as finished.
 	FinishAnalysis(analysisID int, status AnalysisStatus, analysis *Analysis) error
 	// GetAnalysis returns an analysis for a given analysisID, returns nil if no
@@ -70,10 +70,10 @@ func (s *AnalysisStatus) Scan(value interface{}) error {
 
 // GHInstallation represents a row from the gh_installations table.
 type GHInstallation struct {
-	ID             int
-	InstallationID int
-	AccountID      int
-	SenderID       int
+	ID             int64
+	InstallationID int64
+	AccountID      int64
+	SenderID       int64
 	enabledAt      time.Time
 }
 
@@ -134,7 +134,7 @@ type Output struct {
 // Analysis represents a single analysis of a repository at a point in time.
 type Analysis struct {
 	ID             int            `db:"id"`
-	InstallationID int            `db:"installation_id"`
+	InstallationID int64          `db:"installation_id"`
 	RepositoryID   int            `db:"repository_id"`
 	CommitFrom     string         `db:"commit_from"`
 	CommitTo       string         `db:"commit_to"`

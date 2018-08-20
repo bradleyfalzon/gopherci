@@ -1,0 +1,55 @@
+package: github.com/bradleyfalzon/gopherci
+import:
+- package: cloud.google.com/go
+  version: v0.26.0
+  subpackages:
+  - pubsub
+- package: github.com/bradleyfalzon/ghinstallation
+  version: v0.1.2
+- package: github.com/bradleyfalzon/revgrep
+  version: v0.3
+- package: github.com/evalphobia/logrus_sentry
+  version: v0.4.6
+- package: github.com/fsouza/go-dockerclient
+  version: v1.2.2
+- package: github.com/go-chi/chi
+  version: v3.3.2
+  subpackages:
+  - middleware
+- package: github.com/go-sql-driver/mysql
+  version: v1.4.0
+- package: github.com/google/go-github
+  version: v17.0.0
+  subpackages:
+  - github
+- package: github.com/jmoiron/sqlx
+- package: github.com/joho/godotenv
+  version: v1.2.0
+- package: github.com/pkg/errors
+  version: v0.8.0
+- package: github.com/rubenv/sql-migrate
+- package: github.com/sethgrid/pester
+  version: 1.0.0
+- package: github.com/sirupsen/logrus
+  version: v1.0.6
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: golang.org/x/sys
+  subpackages:
+  - unix
+- package: google.golang.org/grpc
+  version: v1.14.0
+  subpackages:
+  - codes
+- package: gopkg.in/yaml.v1
+  version: v2.2.1
+- package: sourcegraph.com/sourcegraph/go-diff
+  subpackages:
+  - diff
+testImport:
+- package: github.com/google/go-cmp
+  version: v0.2.0
+  subpackages:
+  - cmp
+- package: golang.org/x/oauth2

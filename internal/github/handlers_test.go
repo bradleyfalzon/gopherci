@@ -87,8 +87,8 @@ func setup(t *testing.T) (*GitHub, *mockAnalyser, *db.MockDB) {
 		wg sync.WaitGroup
 		c  = make(chan interface{})
 	)
-	queue := queue.NewMemoryQueue(logger.Testing())
-	queue.Wait(context.Background(), &wg, c, func(job interface{}) {})
+	queue_ := queue.NewMemoryQueue(logger.Testing())
+	queue_.Wait(context.Background(), &wg, c, func(job interface{}) {})
 
 	// New GitHub
 	g, err := New(logger.Testing(), mockAnalyser, memDB, c, 1, integrationKey, webhookSecret, "https://example.com")
@@ -155,10 +155,10 @@ func TestWebhookHandler(t *testing.T) {
 	goodPush := func() *github.PushEvent {
 		return &github.PushEvent{
 			Installation: &github.Installation{
-				ID: github.Int(1),
+				ID: github.Int64(1),
 			},
 			Repo: &github.PushEventRepository{
-				ID:          github.Int(2),
+				ID:          github.Int64(2),
 				StatusesURL: github.String("https://github.com/owner/repo/status/{sha}"),
 				CloneURL:    github.String("https://github.com/owner/repo.git"),
 				HTMLURL:     github.String("https://github.com/owner/repo"),
@@ -197,14 +197,14 @@ func TestWebhookHandler(t *testing.T) {
 				},
 			},
 			Installation: &github.Installation{
-				ID: github.Int(1),
+				ID: github.Int64(1),
 			},
 			Repo: &github.Repository{
 				Owner: &github.User{
 					Login: github.String("owner"),
 				},
 				Name:    github.String("repo"),
-				ID:      github.Int(2),
+				ID:      github.Int64(2),
 				Private: github.Bool(false),
 			},
 		}
@@ -223,7 +223,7 @@ func TestWebhookHandler(t *testing.T) {
 
 	// No valid installation
 	pushNoInstall := goodPush()
-	pushNoInstall.Installation.ID = github.Int(2)
+	pushNoInstall.Installation.ID = github.Int64(2)
 
 	// Private repo
 	pushPrivateRepo := goodPush()
@@ -242,7 +242,7 @@ func TestWebhookHandler(t *testing.T) {
 
 	// No install
 	prNoInstall := goodPR()
-	prNoInstall.Installation.ID = github.Int(2)
+	prNoInstall.Installation.ID = github.Int64(2)
 
 	// Invalid action
 	prInvalidAction := goodPR()
@@ -442,8 +442,8 @@ func TestCheckPRAffectsGo(t *testing.T) {
 		t.Fatal("unexpected error:", err)
 	}
 
-	if want := true; have != want {
-		t.Errorf("have: %v, want: %v", have, want)
+	if !have {
+		t.Errorf("have: %v, want: %v", have, true)
 	}
 }
 
@@ -504,14 +504,14 @@ func TestIntegrationInstallationEvent(t *testing.T) {
 	event := &github.InstallationEvent{
 		Action: github.String("created"),
 		Installation: &github.Installation{
-			ID: github.Int(installationID),
+			ID: github.Int64(installationID),
 			Account: &github.User{
-				ID:    github.Int(accountID),
+				ID:    github.Int64(accountID),
 				Login: github.String("accountlogin"),
 			},
 		},
 		Sender: &github.User{
-			ID:    github.Int(senderID),
+			ID:    github.Int64(senderID),
 			Login: github.String("senderlogin"),
 		},
 	}
@@ -578,10 +578,10 @@ func TestPushConfig(t *testing.T) {
 func goodPush() *github.PushEvent {
 	return &github.PushEvent{
 		Installation: &github.Installation{
-			ID: github.Int(1),
+			ID: github.Int64(1),
 		},
 		Repo: &github.PushEventRepository{
-			ID: github.Int(2),
+			ID: github.Int64(2),
 			Owner: &github.PushEventRepoOwner{
 				Name: github.String("owner"),
 			},
@@ -651,10 +651,10 @@ func TestPullRequestConfig(t *testing.T) {
 			},
 		},
 		Installation: &github.Installation{
-			ID: github.Int(1),
+			ID: github.Int64(1),
 		},
 		Repo: &github.Repository{
-			ID: github.Int(2),
+			ID: github.Int64(2),
 		},
 	}
 	have := PullRequestConfig(e)

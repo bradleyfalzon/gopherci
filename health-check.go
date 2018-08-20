@@ -39,7 +39,7 @@ func SignalHandler(logger logger.Logger, cancel context.CancelFunc, srv *http.Se
 
 // HealthCheckHandler checks whether the instance is shutting down, and if so,
 // responds with 503 Service Unavailable.
-func HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+func HealthCheckHandler(w http.ResponseWriter, _ *http.Request) {
 	if shuttingDown {
 		http.Error(w, "Service shutting down", http.StatusServiceUnavailable)
 	}

@@ -1,5 +1,5 @@
 deps:
-	dep ensure
+	glide install
 	mkdir -p ${GOPATH}/src/github.com/Sirupsen
 	mv vendor/github.com/Sirupsen/logrus ${GOPATH}/src/github.com/Sirupsen
 

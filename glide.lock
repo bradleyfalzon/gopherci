@@ -1,0 +1,274 @@
+hash: 554872fd9f2e2b059630793fb9c87deccc3020290c091cd856fcd685ea016b09
+updated: 2018-08-20T21:09:29.431944+10:00
+imports:
+- name: cloud.google.com/go
+  version: 64a2037ec6be8a4b0c1d1f706ed35b428b989239
+  subpackages:
+  - compute/metadata
+  - iam
+  - internal/optional
+  - internal/version
+  - pubsub
+  - pubsub/apiv1
+  - pubsub/internal/distribution
+- name: contrib.go.opencensus.io/exporter/stackdriver
+  version: f7f5758592258ab71384efef9cdb0daf785a9ab1
+  subpackages:
+  - propagation
+- name: github.com/Azure/go-ansiterm
+  version: d6e3b3328b783f23731bc4d058875b0371ff8109
+  subpackages:
+  - winterm
+- name: github.com/bradleyfalzon/ghinstallation
+  version: 3f4e9b1898e6b65e31827d5dccb97d91d59feaa3
+- name: github.com/bradleyfalzon/revgrep
+  version: c04006dc3307c8768bda7a33c7c15d1c6f664e14
+- name: github.com/certifi/gocertifi
+  version: deb3ae2ef2610fde3330947281941c562861188b
+- name: github.com/containerd/continuity
+  version: c7c5070e6f6e090ab93b0a61eb921f2196fc3383
+  subpackages:
+  - pathdriver
+- name: github.com/dgrijalva/jwt-go
+  version: 0b96aaa707760d6ab28d9b9d1913ff5993328bae
+- name: github.com/docker/docker
+  version: e0ad6d045c752e0523d8591b235ec2db32bc71fc
+  subpackages:
+  - api/types
+  - api/types/blkiodev
+  - api/types/container
+  - api/types/filters
+  - api/types/mount
+  - api/types/network
+  - api/types/registry
+  - api/types/strslice
+  - api/types/swarm
+  - api/types/swarm/runtime
+  - api/types/versions
+  - errdefs
+  - opts
+  - pkg/fileutils
+  - pkg/homedir
+  - pkg/idtools
+  - pkg/ioutils
+  - pkg/longpath
+  - pkg/mount
+  - pkg/pools
+  - pkg/stdcopy
+  - pkg/system
+- name: github.com/docker/go-connections
+  version: 7395e3f8aa162843a74ed6d48e79627d9792ac55
+  subpackages:
+  - nat
+- name: github.com/docker/go-units
+  version: 47565b4f722fb6ceae66b95f853feed578a4a51c
+- name: github.com/docker/libnetwork
+  version: a79d3687931697244b8e03485bf7b2042f8ec6b6
+  subpackages:
+  - ipamutils
+- name: github.com/evalphobia/logrus_sentry
+  version: b78b27461c8163c45abf4ab3a8330d2b1ee9456a
+- name: github.com/fsouza/go-dockerclient
+  version: 8842d40dbf5ee062d80f9dc429db31a0fe0cdc73
+  subpackages:
+  - internal/archive
+  - internal/jsonmessage
+  - internal/term
+- name: github.com/getsentry/raven-go
+  version: 7535a8fa2ace0ffb684b19f28d00655459ea2dae
+- name: github.com/go-chi/chi
+  version: e83ac2304db3c50cf03d96a2fcd39009d458bc35
+  subpackages:
+  - middleware
+- name: github.com/go-sql-driver/mysql
+  version: d523deb1b23d913de5bdada721a6071e71283618
+- name: github.com/gogo/protobuf
+  version: 476a2e96f315dddcec331f89af7cdf0d51cd84b5
+  subpackages:
+  - proto
+- name: github.com/golang/protobuf
+  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
+  subpackages:
+  - proto
+  - protoc-gen-go/descriptor
+  - ptypes
+  - ptypes/any
+  - ptypes/duration
+  - ptypes/empty
+  - ptypes/timestamp
+- name: github.com/google/go-github
+  version: 747f93dd9b489bd56f7442b3c42bfea12800a75b
+  subpackages:
+  - github
+- name: github.com/google/go-querystring
+  version: 53e6ce116135b80d037921a7fdd5138cf32d7a8a
+  subpackages:
+  - query
+- name: github.com/googleapis/gax-go
+  version: 1ef592c90f479e3ab30c6c2312e20e13881b7ea6
+- name: github.com/jmoiron/sqlx
+  version: 0dae4fefe7c0e190f7b5a78dac28a1c82cc8d849
+  subpackages:
+  - reflectx
+- name: github.com/joho/godotenv
+  version: a79fa1e548e2c689c241d10173efd51e5d689d5b
+- name: github.com/Microsoft/go-winio
+  version: 78a084671df137c2acfcacaa730d7e7dc285ac39
+- name: github.com/Nvveen/Gotty
+  version: cd527374f1e5bff4938207604a14f2e38a9cf512
+- name: github.com/opencontainers/go-digest
+  version: c9281466c8b2f606084ac71339773efd177436e7
+- name: github.com/opencontainers/image-spec
+  version: e562b04403929d582d449ae5386ff79dd7961a11
+  subpackages:
+  - specs-go
+  - specs-go/v1
+- name: github.com/opencontainers/runc
+  version: 20aff4f0488c6d4b8df4d85b4f63f1f704c11abd
+  subpackages:
+  - libcontainer/user
+- name: github.com/pkg/errors
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+- name: github.com/rubenv/sql-migrate
+  version: 3f452fc0ebebbb784fdab91f7bc79a31dcacab5c
+  subpackages:
+  - sqlparse
+- name: github.com/sethgrid/pester
+  version: 03e26c9abbbf5accb8349790bf9f41bde09d72c3
+- name: github.com/sirupsen/logrus
+  version: 3e01752db0189b9157070a0e1668a620f9a85da2
+- name: go.opencensus.io
+  version: 1789eaf7638d6f16d055afd35654928c04663cfc
+  subpackages:
+  - internal
+  - internal/tagencoding
+  - plugin/ocgrpc
+  - plugin/ochttp
+  - plugin/ochttp/propagation/b3
+  - stats
+  - stats/internal
+  - stats/view
+  - tag
+  - trace
+  - trace/internal
+  - trace/propagation
+- name: golang.org/x/crypto
+  version: c3a3ad6d03f7a915c0f7e194b7152974bb73d287
+  subpackages:
+  - ssh/terminal
+- name: golang.org/x/net
+  version: 92b859f39abd2d91a854c9f9c4621b2f5054a92d
+  subpackages:
+  - context
+  - context/ctxhttp
+  - http2
+  - http2/hpack
+  - idna
+  - internal/timeseries
+  - lex/httplex
+  - trace
+- name: golang.org/x/oauth2
+  version: 3d292e4d0cdc3a0113e6d207bb137145ef1de42f
+  subpackages:
+  - google
+  - internal
+  - jws
+  - jwt
+- name: golang.org/x/sync
+  version: 1d60e4601c6fd243af51cc01ddf169918a5407ca
+  subpackages:
+  - errgroup
+  - semaphore
+- name: golang.org/x/sys
+  version: d8e400bc7db4870d786864138af681469693d18c
+  subpackages:
+  - unix
+  - windows
+- name: golang.org/x/text
+  version: f21a4dfb5e38f5895301dc265a8def02365cc3d0
+  subpackages:
+  - secure/bidirule
+  - transform
+  - unicode/bidi
+  - unicode/norm
+- name: google.golang.org/api
+  version: e21acd801f91da814261b938941d193bb036441a
+  subpackages:
+  - googleapi/transport
+  - internal
+  - iterator
+  - option
+  - support/bundler
+  - transport
+  - transport/grpc
+  - transport/http
+- name: google.golang.org/appengine
+  version: 4216e58b9158e5f1c906f1aca75162a46a2ec88a
+  subpackages:
+  - cloudsql
+  - internal
+  - internal/app_identity
+  - internal/base
+  - internal/datastore
+  - internal/log
+  - internal/modules
+  - internal/remote_api
+  - internal/socket
+  - internal/urlfetch
+  - socket
+  - urlfetch
+- name: google.golang.org/genproto
+  version: ff3583edef7de132f219f0efc00e097cabcc0ec0
+  subpackages:
+  - googleapis/api/annotations
+  - googleapis/iam/v1
+  - googleapis/pubsub/v1
+  - googleapis/rpc/status
+  - protobuf/field_mask
+- name: google.golang.org/grpc
+  version: 32fb0ac620c32ba40a4626ddf94d90d12cce3455
+  subpackages:
+  - balancer
+  - balancer/base
+  - balancer/roundrobin
+  - codes
+  - connectivity
+  - credentials
+  - credentials/oauth
+  - encoding
+  - encoding/proto
+  - grpclog
+  - internal
+  - internal/backoff
+  - internal/channelz
+  - internal/envconfig
+  - internal/grpcrand
+  - internal/transport
+  - keepalive
+  - metadata
+  - naming
+  - peer
+  - resolver
+  - resolver/dns
+  - resolver/passthrough
+  - stats
+  - status
+  - tap
+- name: gopkg.in/gorp.v1
+  version: c87af80f3cc5036b55b83d77171e156791085e2e
+- name: gopkg.in/yaml.v1
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
+- name: sourcegraph.com/sourcegraph/go-diff
+  version: 3f415a150aec0685cb81b73cc201e762e075006d
+  subpackages:
+  - diff
+- name: sourcegraph.com/sqs/pbtypes
+  version: d3ebe8f20ae404b082e57662738480545bc2ad3d
+testImports:
+- name: github.com/google/go-cmp
+  version: 3af367b6b30c263d47e8895973edcca9a49cf029
+  subpackages:
+  - cmp
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value

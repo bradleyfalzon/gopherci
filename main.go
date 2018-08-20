@@ -24,7 +24,7 @@ import (
 	gh "github.com/google/go-github/github"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
-	migrate "github.com/rubenv/sql-migrate"
+	"github.com/rubenv/sql-migrate"
 )
 
 // build tracks the build version of the binary.
@@ -35,8 +35,8 @@ func main() {
 	_ = godotenv.Load()
 
 	rootLogger := logger.New(os.Stdout, build, os.Getenv("LOGGER_ENV"), os.Getenv("LOGGER_SENTRY_DSN"))
-	logger := rootLogger.With("area", "main")
-	logger.With("build", build).Info("starting gopherci")
+	logger_ := rootLogger.With("area", "main")
+	logger_.With("build", build).Info("starting gopherci")
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP) // Blindly accept XFF header, ensure LB overwrites it
@@ -56,17 +56,17 @@ func main() {
 
 	switch {
 	case os.Getenv("GCI_BASE_URL") == "":
-		logger.Info("GCI_BASE_URL is blank, URLs linking back to GopherCI will not work")
+		logger_.Info("GCI_BASE_URL is blank, URLs linking back to GopherCI will not work")
 	case os.Getenv("GITHUB_ID") == "":
-		logger.Error("GITHUB_ID is not set")
+		logger_.Error("GITHUB_ID is not set")
 	case os.Getenv("GITHUB_PEM_FILE") == "":
-		logger.Fatal("GITHUB_PEM_FILE is not set")
+		logger_.Fatal("GITHUB_PEM_FILE is not set")
 	case os.Getenv("GITHUB_WEBHOOK_SECRET") == "":
-		logger.Fatal("GITHUB_WEBHOOK_SECRET is not set")
+		logger_.Fatal("GITHUB_WEBHOOK_SECRET is not set")
 	}
 
 	// Database
-	logger.Infof("connecting to %q db name: %q, username: %q, host: %q, port: %q",
+	logger_.Infof("connecting to %q db_ name: %q, username: %q, host: %q, port: %q",
 		os.Getenv("DB_DRIVER"), os.Getenv("DB_DATABASE"), os.Getenv("DB_USERNAME"), os.Getenv("DB_HOST"), os.Getenv("DB_PORT"),
 	)
 
@@ -76,7 +76,7 @@ func main() {
 
 	sqlDB, err := sql.Open(os.Getenv("DB_DRIVER"), dsn)
 	if err != nil {
-		logger.With("error", err).Fatal("could not open database")
+		logger_.With("error", err).Fatal("could not open database")
 	}
 
 	// Do DB migrations
@@ -89,36 +89,36 @@ func main() {
 		migrateMax = 1
 	}
 	n, err := migrate.ExecMax(sqlDB, os.Getenv("DB_DRIVER"), migrations, direction, migrateMax)
-	logger.Infof("applied %d migrations to database", n)
+	logger_.Infof("applied %d migrations to database", n)
 	if err != nil {
-		logger.With("error", err).Fatal("could not execute all migrations")
+		logger_.With("error", err).Fatal("could not execute all migrations")
 	}
 
-	db, err := db.NewSQLDB(sqlDB, os.Getenv("DB_DRIVER"))
+	db_, err := db.NewSQLDB(sqlDB, os.Getenv("DB_DRIVER"))
 	if err != nil {
-		logger.With("error", err).Fatal("could not initialise database")
+		logger_.With("error", err).Fatal("could not initialise database")
 	}
-	go db.Cleanup(ctx, rootLogger.With("area", "db"))
+	go db_.Cleanup(ctx, rootLogger.With("area", "db"))
 
 	var analyserMemoryLimit int64
 	if os.Getenv("ANALYSER_MEMORY_LIMIT") != "" {
 		analyserMemoryLimit, err = strconv.ParseInt(os.Getenv("ANALYSER_MEMORY_LIMIT"), 10, 32)
 		if err != nil {
-			logger.With("error", err).Fatal("could not parse ANALYSER_MEMORY_LIMIT")
+			logger_.With("error", err).Fatal("could not parse ANALYSER_MEMORY_LIMIT")
 		}
 	}
 
 	// Analyser
-	logger.Infof("using analyser %q", os.Getenv("ANALYSER"))
+	logger_.Infof("using analyser %q", os.Getenv("ANALYSER"))
 	var analyse analyser.Analyser
 	switch os.Getenv("ANALYSER") {
 	case "filesystem":
 		if os.Getenv("ANALYSER_FILESYSTEM_PATH") == "" {
-			logger.Fatal("ANALYSER_FILESYSTEM_PATH is not set")
+			logger_.Fatal("ANALYSER_FILESYSTEM_PATH is not set")
 		}
 		analyse, err = analyser.NewFileSystem(os.Getenv("ANALYSER_FILESYSTEM_PATH"), int(analyserMemoryLimit))
 		if err != nil {
-			logger.Fatal("could not initialise file system analyser:", err)
+			logger_.Fatal("could not initialise file system analyser:", err)
 		}
 	case "docker":
 		image := os.Getenv("ANALYSER_DOCKER_IMAGE")
@@ -127,39 +127,39 @@ func main() {
 		}
 		analyse, err = analyser.NewDocker(rootLogger.With("area", "docker"), image, int(analyserMemoryLimit))
 		if err != nil {
-			logger.Fatal("could not initialise Docker analyser:", err)
+			logger_.Fatal("could not initialise Docker analyser:", err)
 		}
 	case "":
-		logger.Fatal("ANALYSER is not set")
+		logger_.Fatal("ANALYSER is not set")
 	default:
-		logger.Fatalf("Unknown ANALYSER option %q", os.Getenv("ANALYSER"))
+		logger_.Fatalf("Unknown ANALYSER option %q", os.Getenv("ANALYSER"))
 	}
 
 	// GitHub
-	logger.Infof("github Integration ID: %q, GitHub Integration PEM File: %q", os.Getenv("GITHUB_ID"), os.Getenv("GITHUB_PEM_FILE"))
+	logger_.Infof("github Integration ID: %q, GitHub Integration PEM File: %q", os.Getenv("GITHUB_ID"), os.Getenv("GITHUB_PEM_FILE"))
 	integrationID, err := strconv.ParseInt(os.Getenv("GITHUB_ID"), 10, 64)
 	if err != nil {
-		logger.Fatalf("could not parse integrationID %q", os.Getenv("GITHUB_ID"))
+		logger_.Fatalf("could not parse integrationID %q", os.Getenv("GITHUB_ID"))
 	}
 
 	integrationKey, err := ioutil.ReadFile(os.Getenv("GITHUB_PEM_FILE"))
 	if err != nil {
-		logger.Fatalf("could not read private key for GitHub integration: %s", err)
+		logger_.Fatalf("could not read private key for GitHub integration: %s", err)
 	}
 
 	// queuePush is used to add a job to the queue
 	var queuePush = make(chan interface{})
 
-	gh, err := github.New(rootLogger, analyse, db, queuePush, int(integrationID), integrationKey, os.Getenv("GITHUB_WEBHOOK_SECRET"), os.Getenv("GCI_BASE_URL"))
+	gh_, err := github.New(rootLogger, analyse, db_, queuePush, integrationID, integrationKey, os.Getenv("GITHUB_WEBHOOK_SECRET"), os.Getenv("GCI_BASE_URL"))
 	if err != nil {
-		logger.Fatal("could not initialise GitHub:", err)
+		logger_.Fatal("could not initialise GitHub:", err)
 	}
-	r.Post("/gh/webhook", gh.WebHookHandler)
-	r.Get("/gh/callback", gh.CallbackHandler)
+	r.Post("/gh/webhook", gh_.WebHookHandler)
+	r.Get("/gh/callback", gh_.CallbackHandler)
 
 	var (
 		wg         sync.WaitGroup // wait for queue to finish before exiting
-		qProcessor = queueProcessor{github: gh, logger: rootLogger.With("area", "queueProcessor")}
+		qProcessor = queueProcessor{github: gh_, logger: rootLogger.With("area", "queueProcessor")}
 	)
 
 	switch os.Getenv("QUEUER") {
@@ -169,44 +169,44 @@ func main() {
 	case "gcppubsub":
 		switch {
 		case os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID") == "":
-			logger.Fatalf("QUEUER_GCPPUBSUB_PROJECT_ID is not set")
+			logger_.Fatalf("QUEUER_GCPPUBSUB_PROJECT_ID is not set")
 		}
 		gcp, err := queue.NewGCPPubSubQueue(ctx, rootLogger.With("area", "gcpPubSubQueue"), os.Getenv("QUEUER_GCPPUBSUB_PROJECT_ID"), os.Getenv("QUEUER_GCPPUBSUB_TOPIC"))
 		if err != nil {
-			logger.Fatal("Could not initialise GCPPubSubQueue:", err)
+			logger_.Fatal("Could not initialise GCPPubSubQueue:", err)
 		}
 		gcp.Wait(ctx, &wg, queuePush, qProcessor.Process)
 	case "":
-		logger.Fatal("QUEUER is not set")
+		logger_.Fatal("QUEUER is not set")
 	default:
-		logger.Fatalf("Unknown QUEUER option %q", os.Getenv("QUEUER"))
+		logger_.Fatalf("Unknown QUEUER option %q", os.Getenv("QUEUER"))
 	}
 
 	// Web routes
-	web, err := web.NewWeb(rootLogger.With("area", "web"), db, gh)
+	web_, err := web.NewWeb(rootLogger.With("area", "web"), db_, gh_)
 	if err != nil {
-		logger.With("error", err).Fatal("could not instantiate web")
+		logger_.With("error", err).Fatal("could not instantiate web")
 	}
 	workDir, _ := os.Getwd()
 	FileServer(r, "/static", http.Dir(filepath.Join(workDir, "internal", "web", "static")))
 
-	r.NotFound(web.NotFoundHandler)
-	r.Get("/analysis/{analysisID}", web.AnalysisHandler)
+	r.NotFound(web_.NotFoundHandler)
+	r.Get("/analysis/{analysisID}", web_.AnalysisHandler)
 
 	// Health checks
 	r.Get("/health-check", HealthCheckHandler)
 
 	// Listen
-	logger.Infof("listening on %s", srv.Addr)
+	logger_.Infof("listening on %s", srv.Addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.With("error", err).Error("http server error")
+		logger_.With("error", err).Error("http server error")
 		cancel()
 	}
 
 	// Wait for current item in queue to finish
-	logger.Info("waiting for queuer to finish")
+	logger_.Info("waiting for queuer to finish")
 	wg.Wait()
-	logger.Info("exiting gracefully")
+	logger_.Info("exiting gracefully")
 }
 
 // FileServer conveniently sets up a http.FileServer handler to serve

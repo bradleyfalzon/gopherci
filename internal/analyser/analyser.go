@@ -165,7 +165,7 @@ func Analyse(ctx context.Context, logger logger.Logger, exec Executer, cloner Cl
 
 		var issues []db.Issue
 		for _, issue := range revIssues {
-			// Remove issues in generated files, isFileGenereated will return
+			// Remove issues in generated files, isFileGenerated will return
 			// 0 for file is generated or 1 for file is not generated.
 			args = []string{"isFileGenerated", pwd, issue.File}
 			out, err := exec.Execute(ctx, args)

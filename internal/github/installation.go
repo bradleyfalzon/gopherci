@@ -19,7 +19,7 @@ type Installation struct {
 	client *github.Client
 }
 
-func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
+func (g *GitHub) NewInstallation(installationID int64) (*Installation, error) {
 
 	// TODO reuse installations, so we maintain rate limit state between webhooks
 	installation, err := g.db.GetGHInstallation(installationID)
@@ -44,7 +44,7 @@ func (g *GitHub) NewInstallation(installationID int) (*Installation, error) {
 		return nil, err
 	}
 
-	return &Installation{ID: installation.ID, client: client}, nil
+	return &Installation{ID: int(installation.ID), client: client}, nil
 }
 
 // IsEnabled returns true if an installation is enabled.

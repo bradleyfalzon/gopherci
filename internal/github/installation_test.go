@@ -15,12 +15,12 @@ import (
 
 func TestInstallation_isEnabled(t *testing.T) {
 	var i *Installation
-	if want := false; i.IsEnabled() != want {
-		t.Errorf("want: %v, have: %v", want, i.IsEnabled())
+	if i.IsEnabled() {
+		t.Errorf("want: %v, have: %v", true, i.IsEnabled())
 	}
 	i = &Installation{}
-	if want := true; i.IsEnabled() != want {
-		t.Errorf("want: %v, have: %v", want, i.IsEnabled())
+	if !i.IsEnabled() {
+		t.Errorf("want: %v, have: %v", false, i.IsEnabled())
 	}
 }
 

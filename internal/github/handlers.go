@@ -325,8 +325,8 @@ func PullRequestConfig(e *github.PullRequestEvent) AnalyseConfig {
 type AnalyseConfig struct {
 	cloner          analyser.Cloner
 	refReader       analyser.RefReader
-	installationID  int
-	repositoryID    int
+	installationID  int64
+	repositoryID    int64
 	statusesContext string
 	statusesURL     string
 
@@ -376,7 +376,7 @@ func (g *GitHub) Analyse(cfg AnalyseConfig) (err error) {
 	}
 
 	// Record start of analysis
-	analysis, err := g.db.StartAnalysis(install.ID, cfg.repositoryID, cfg.commitFrom, cfg.commitTo, cfg.pr)
+	analysis, err := g.db.StartAnalysis(int64(install.ID), cfg.repositoryID, cfg.commitFrom, cfg.commitTo, cfg.pr)
 	if err != nil {
 		return errors.Wrap(err, "error starting analysis")
 	}
