@@ -11,7 +11,7 @@ import:
 - package: github.com/evalphobia/logrus_sentry
   version: v0.4.6
 - package: github.com/fsouza/go-dockerclient
-  version: v1.2.2
+  version: 9a621fe53e5e61d9d6127feecf62c112f3266906
 - package: github.com/go-chi/chi
   version: v3.3.2
   subpackages:
@@ -47,6 +47,11 @@ import:
 - package: sourcegraph.com/sourcegraph/go-diff
   subpackages:
   - diff
+- package: github.com/golang/protobuf
+  version: v1.1.0
+  subpackages:
+  - proto
+  - protoc-gen-go
 testImport:
 - package: github.com/google/go-cmp
   version: v0.2.0

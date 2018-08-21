@@ -1,5 +1,5 @@
-hash: 554872fd9f2e2b059630793fb9c87deccc3020290c091cd856fcd685ea016b09
-updated: 2018-08-20T21:09:29.431944+10:00
+hash: 652c24a33e2d818fef0658aa58953d382df8188e7c058a7d4109c94546f5c58a
+updated: 2018-08-21T01:55:29.120540617Z
 imports:
 - name: cloud.google.com/go
   version: 64a2037ec6be8a4b0c1d1f706ed35b428b989239
@@ -69,7 +69,7 @@ imports:
 - name: github.com/evalphobia/logrus_sentry
   version: b78b27461c8163c45abf4ab3a8330d2b1ee9456a
 - name: github.com/fsouza/go-dockerclient
-  version: 8842d40dbf5ee062d80f9dc429db31a0fe0cdc73
+  version: 9a621fe53e5e61d9d6127feecf62c112f3266906
   subpackages:
   - internal/archive
   - internal/jsonmessage
@@ -90,6 +90,7 @@ imports:
   version: b4deda0973fb4c70b50d226b1af49f3da59f5265
   subpackages:
   - proto
+  - protoc-gen-go
   - protoc-gen-go/descriptor
   - ptypes
   - ptypes/any
@@ -180,7 +181,7 @@ imports:
   - errgroup
   - semaphore
 - name: golang.org/x/sys
-  version: d8e400bc7db4870d786864138af681469693d18c
+  version: 1c9583448a9c3aa0f9a6a5241bf73c0bd8aafded
   subpackages:
   - unix
   - windows
