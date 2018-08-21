@@ -87,8 +87,8 @@ func setup(t *testing.T) (*GitHub, *mockAnalyser, *db.MockDB) {
 		wg sync.WaitGroup
 		c  = make(chan interface{})
 	)
-	queue_ := queue.NewMemoryQueue(logger.Testing())
-	queue_.Wait(context.Background(), &wg, c, func(job interface{}) {})
+	q := queue.NewMemoryQueue(logger.Testing())
+	q.Wait(context.Background(), &wg, c, func(job interface{}) {})
 
 	// New GitHub
 	g, err := New(logger.Testing(), mockAnalyser, memDB, c, 1, integrationKey, webhookSecret, "https://example.com")

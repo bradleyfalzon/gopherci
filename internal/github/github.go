@@ -10,7 +10,7 @@ import (
 	"github.com/sethgrid/pester"
 )
 
-// GitHub is the type gopherci uses to interract with github.com.
+// GitHub is the type gopherci uses to interact with github.com.
 type GitHub struct {
 	logger         logger.Logger
 	db             db.DB

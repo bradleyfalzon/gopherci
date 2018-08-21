@@ -53,8 +53,8 @@ func TestDedupePRIssues(t *testing.T) {
 					Position: github.Int(expectedCmtPos + 2),
 				},
 			}
-			json_, _ := json.Marshal(comments)
-			fmt.Fprint(w, string(json_))
+			bites, _ := json.Marshal(comments)
+			fmt.Fprint(w, string(bites))
 		}
 	}))
 	defer ts.Close()
@@ -96,8 +96,8 @@ func TestPRCommentReporter_report(t *testing.T) {
 			if strings.ToLower(r.Method) == "get" {
 				// Call to ListComments
 				var comments []*github.PullRequestComment
-				json_, _ := json.Marshal(comments)
-				fmt.Fprint(w, string(json_))
+				bites, _ := json.Marshal(comments)
+				fmt.Fprint(w, string(bites))
 				break
 			}
 			expected := github.PullRequestComment{
