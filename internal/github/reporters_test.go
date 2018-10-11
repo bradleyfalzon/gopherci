@@ -53,8 +53,8 @@ func TestDedupePRIssues(t *testing.T) {
 					Position: github.Int(expectedCmtPos + 2),
 				},
 			}
-			json, _ := json.Marshal(comments)
-			fmt.Fprint(w, string(json))
+			bites, _ := json.Marshal(comments)
+			fmt.Fprint(w, string(bites))
 		}
 	}))
 	defer ts.Close()
@@ -95,9 +95,9 @@ func TestPRCommentReporter_report(t *testing.T) {
 		case fmt.Sprintf("/repos/%v/%v/pulls/%v/comments", expectedOwner, expectedRepo, expectedPR):
 			if strings.ToLower(r.Method) == "get" {
 				// Call to ListComments
-				comments := []*github.PullRequestComment{}
-				json, _ := json.Marshal(comments)
-				fmt.Fprint(w, string(json))
+				var comments []*github.PullRequestComment
+				bites, _ := json.Marshal(comments)
+				fmt.Fprint(w, string(bites))
 				break
 			}
 			expected := github.PullRequestComment{

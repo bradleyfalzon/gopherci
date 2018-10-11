@@ -68,7 +68,7 @@ type Line struct {
 
 // DiffIssues reads a diff and adds the issues to the lines affected. Only
 // hunks with issues will be returned.
-func DiffIssues(ctx context.Context, diffReader io.Reader, issues []db.Issue) ([]Patch, error) {
+func DiffIssues(_ context.Context, diffReader io.Reader, issues []db.Issue) ([]Patch, error) {
 	ghDiff, err := ioutil.ReadAll(&io.LimitedReader{R: diffReader, N: 1e9})
 	if err != nil {
 		return nil, errors.Wrap(err, "could not read from diff reader")

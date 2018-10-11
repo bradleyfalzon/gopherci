@@ -114,8 +114,8 @@ index 0000000..6362395
 	}
 
 	want := map[db.ToolID][]db.Issue{
-		1: []db.Issue{{Path: "main.go", Line: 1, HunkPos: 1, Issue: "Name1: error1"}},
-		2: []db.Issue{{Path: "main.go", Line: 1, HunkPos: 1, Issue: "Name2: error2"}},
+		1: {{Path: "main.go", Line: 1, HunkPos: 1, Issue: "Name1: error1"}},
+		2: {{Path: "main.go", Line: 1, HunkPos: 1, Issue: "Name2: error2"}},
 		3: nil,
 	}
 	for toolID, issues := range want {

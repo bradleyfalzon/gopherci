@@ -160,24 +160,24 @@ type container struct {
 // receive calls sub.Receive, which blocks forever waiting for new jobs.
 func (q *GCPPubSubQueue) receive(ctx context.Context, f func(interface{})) {
 	err := q.subscription.Receive(ctx, func(ctx xContext.Context, msg *pubsub.Message) {
-		logger := q.logger.With("messageID", msg.ID)
+		log := q.logger.With("messageID", msg.ID)
 
-		logger.With("publishTime", msg.PublishTime).Info("processing job published")
+		log.With("publishTime", msg.PublishTime).Info("processing job published")
 
 		// Acknowledge the job now, anything else that could fail by this instance
 		// will probably fail for others.
 		msg.Ack()
-		logger.Info("acknowledged job")
+		log.Info("acknowledged job")
 
 		reader := bytes.NewReader(msg.Data)
 		dec := gob.NewDecoder(reader)
 
 		var job container
 		if err := dec.Decode(&job); err != nil {
-			logger.With("error", err).Errorf("could not decode job")
+			log.With("error", err).Errorf("could not decode job")
 			return
 		}
-		logger.Info("processing")
+		log.Info("processing")
 
 		f(job.Job)
 	})

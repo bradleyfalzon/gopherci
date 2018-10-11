@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/bradleyfalzon/gopherci/internal/logger"
-	docker "github.com/fsouza/go-dockerclient"
+	"github.com/fsouza/go-dockerclient"
 	"github.com/pkg/errors"
 )
 

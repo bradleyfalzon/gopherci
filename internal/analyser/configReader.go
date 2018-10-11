@@ -3,7 +3,7 @@ package analyser
 import (
 	"context"
 
-	yaml "gopkg.in/yaml.v1"
+	"gopkg.in/yaml.v1"
 
 	"github.com/bradleyfalzon/gopherci/internal/db"
 	"github.com/pkg/errors"

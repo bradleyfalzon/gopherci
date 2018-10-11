@@ -70,11 +70,11 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logger := web.logger.With("analysisID", analysisID)
+	log := web.logger.With("analysisID", analysisID)
 
 	analysis, err := web.db.GetAnalysis(int(analysisID))
 	if err != nil {
-		logger.With("error", err).Error("cannot get analysis")
+		log.With("error", err).Error("cannot get analysis")
 		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get analysis")
 		return
 	}
@@ -86,14 +86,14 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 
 	outputs, err := web.db.AnalysisOutputs(analysis.ID)
 	if err != nil {
-		logger.With("error", err).Error("cannot get analysis output")
+		log.With("error", err).Error("cannot get analysis output")
 		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get analysis output")
 		return
 	}
 
 	vcs, err := NewVCS(web.gh, analysis)
 	if err != nil {
-		logger.With("error", err).Error("cannot get analysis VCS")
+		log.With("error", err).Error("cannot get analysis VCS")
 		web.errorHandler(w, r, http.StatusInternalServerError, "Could not get VCS")
 		return
 	}
@@ -112,13 +112,13 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 			// when we receive the GitHub event, there's no indication that it's a
 			// new tree. But we can't fetch the diff because there's no history for
 			// this commit so GitHub sends a 404.
-			logger.With("error", err).Error("cannot get diff from VCS")
+			log.With("error", err).Error("cannot get diff from VCS")
 		case diffReader != nil:
 			defer diffReader.Close()
 
 			patches, err = DiffIssues(r.Context(), diffReader, analysis.Issues())
 			if err != nil {
-				logger.With("error", err).Error("cannot diff issues from VCS diff")
+				log.With("error", err).Error("cannot diff issues from VCS diff")
 				web.errorHandler(w, r, http.StatusInternalServerError, "Could not read VCS")
 				return
 			}
@@ -140,6 +140,6 @@ func (web *Web) AnalysisHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := web.templates.ExecuteTemplate(w, "analysis.tmpl", page); err != nil {
-		logger.With("error", err).Error("cannot parse analysis template")
+		log.With("error", err).Error("cannot parse analysis template")
 	}
 }

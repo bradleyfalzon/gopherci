@@ -52,7 +52,7 @@ func (db *SQLDB) Cleanup(ctx context.Context, logger logger.Logger) {
 }
 
 // AddGHInstallation implements the DB interface.
-func (db *SQLDB) AddGHInstallation(installationID, accountID, senderID int) error {
+func (db *SQLDB) AddGHInstallation(installationID, accountID, senderID int64) error {
 	// INSERT IGNORE so any duplicates are ignored
 	_, err := db.sqlx.Exec("INSERT IGNORE INTO gh_installations (installation_id, account_id, sender_id) VALUES (?, ?, ?)",
 		installationID, accountID, senderID,
@@ -61,18 +61,18 @@ func (db *SQLDB) AddGHInstallation(installationID, accountID, senderID int) erro
 }
 
 // RemoveGHInstallation implements the DB interface.
-func (db *SQLDB) RemoveGHInstallation(installationID int) error {
+func (db *SQLDB) RemoveGHInstallation(installationID int64) error {
 	_, err := db.sqlx.Exec("DELETE FROM gh_installations WHERE installation_id = ?", installationID)
 	return err
 }
 
 // GetGHInstallation implements the DB interface.
-func (db *SQLDB) GetGHInstallation(installationID int) (*GHInstallation, error) {
+func (db *SQLDB) GetGHInstallation(installationID int64) (*GHInstallation, error) {
 	var row struct {
-		ID             int            `db:"id"`
-		InstallationID int            `db:"installation_id"`
-		AccountID      int            `db:"account_id"`
-		SenderID       int            `db:"sender_id"`
+		ID             int64          `db:"id"`
+		InstallationID int64          `db:"installation_id"`
+		AccountID      int64          `db:"account_id"`
+		SenderID       int64          `db:"sender_id"`
 		EnabledAt      mysql.NullTime `db:"enabled_at"`
 	}
 	err := db.sqlx.Get(&row, "SELECT id, installation_id, account_id, sender_id, enabled_at FROM gh_installations WHERE installation_id = ?", installationID)
@@ -102,7 +102,7 @@ func (db *SQLDB) ListTools() ([]Tool, error) {
 }
 
 // StartAnalysis implements the DB interface.
-func (db *SQLDB) StartAnalysis(ghInstallationID, repositoryID int, commitFrom, commitTo string, requestNumber int) (*Analysis, error) {
+func (db *SQLDB) StartAnalysis(ghInstallationID, repositoryID int64, commitFrom, commitTo string, requestNumber int) (*Analysis, error) {
 	analysis := NewAnalysis()
 	result, err := db.sqlx.Exec("INSERT INTO analysis (gh_installation_id, repository_id) VALUES (?, ?)", ghInstallationID, repositoryID)
 	if err != nil {

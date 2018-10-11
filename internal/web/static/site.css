@@ -1,33 +1,85 @@
+/* Base Tweaks */
+html {
+    background-color: #f5f5f5;
+}
 
-/* Base Tweaks */ 
-html { background-color: #f5f5f5; }
-h1, h2 { margin-bottom: 1.2rem; }
-footer { text-align: center; background-color: #f5f5f5; padding: 40px 20px; border-top: 1px solid #e6e6e6; }
+h1, h2 {
+    margin-bottom: 1.2rem;
+}
+
+footer {
+    text-align: center;
+    background-color: #f5f5f5;
+    padding: 40px 20px;
+    border-top: 1px solid #e6e6e6;
+}
 
 /* Top Navigation / Logo */
 .top-nav {
-	background-color: #3069b3;
-	color: rgba(255, 255, 255, 0.85);
-	border-bottom: 1px solid white;
+    background-color: #3069b3;
+    color: rgba(255, 255, 255, 0.85);
+    border-bottom: 1px solid white;
 }
-.top-nav .logo { color: inherit; font-size: 26px; line-height: 1.7em; }
-.top-nav .logo .ci { font-weight: bold; }
+
+.top-nav .logo {
+    color: inherit;
+    font-size: 26px;
+    line-height: 1.7em;
+}
+
+.top-nav .logo .ci {
+    font-weight: bold;
+}
 
 /* Analysis Summary */
-.asummary-cont { padding: 2rem 0; background: #fbfbfc; border-bottom: 1px solid #eceeef; }
+.asummary-cont {
+    padding: 2rem 0;
+    background: #fbfbfc;
+    border-bottom: 1px solid #eceeef;
+}
+
 .asummary {
     border-left: 5px solid grey;
     margin-bottom: 2rem;
     background: white;
 }
-.asummary.Success { border-left-color: #5cb85c; }
-.asummary.Failure { border-left-color: #d9534f; }
-.asummary.Error { border-left-color: #f0ad4e; }
-.asummary .table { margin-bottom: 0; border-right: 1px solid #eceeef; border-bottom: 1px solid #eceeef; }
-.asummary .durations { text-align: center; }
-.asummary .duration { color: #757575; }
-.asummary .duration-cont { border-right: 1px solid #eceeef; border-bottom: 1px solid #eceeef; padding-top: .75em; }
-.asummary .badge-pending { color: #fff; background-color: grey; }
+
+.asummary.Success {
+    border-left-color: #5cb85c;
+}
+
+.asummary.Failure {
+    border-left-color: #d9534f;
+}
+
+.asummary.Error {
+    border-left-color: #f0ad4e;
+}
+
+.asummary .table {
+    margin-bottom: 0;
+    border-right: 1px solid #eceeef;
+    border-bottom: 1px solid #eceeef;
+}
+
+.asummary .durations {
+    text-align: center;
+}
+
+.asummary .duration {
+    color: #757575;
+}
+
+.asummary .duration-cont {
+    border-right: 1px solid #eceeef;
+    border-bottom: 1px solid #eceeef;
+    padding-top: .75em;
+}
+
+.asummary .badge-pending {
+    color: #fff;
+    background-color: grey;
+}
 
 /* Analysis Tools Summary */
 .tools {
@@ -35,65 +87,145 @@ footer { text-align: center; background-color: #f5f5f5; padding: 40px 20px; bord
     border-bottom: 1px solid #eceeef;
     background: white;
 }
-.tools .name { width: 20%; }
-.tools .tool { border-left: 5px solid grey; }
-.tools .tool.tool-success { border-left-color: #5cb85c;  }
-.tools .tool.tool-warning { border-left-color: #f0ad4e;  }
-.tools .tool-warning .count { font-weight: bold; }
-.tools .tool-issue { border-left: 1px solid #f0ad4e;  }
-.tools .tool-issue .line { text-align: right; }
+
+.tools .name {
+    width: 20%;
+}
+
+.tools .tool {
+    border-left: 5px solid grey;
+}
+
+.tools .tool.tool-success {
+    border-left-color: #5cb85c;
+}
+
+.tools .tool.tool-warning {
+    border-left-color: #f0ad4e;
+}
+
+.tools .tool-warning .count {
+    font-weight: bold;
+}
+
+.tools .tool-issue {
+    border-left: 1px solid #f0ad4e;
+}
+
+.tools .tool-issue .line {
+    text-align: right;
+}
+
 .tools .tool-issue td {
     padding: 0.4em 0.8em;
     font-family: monospace;
     background: #fff0da;
 }
 
-/* extra-cont is a container for patches/output paadding */
-.extra-cont { padding-top: 2em; }
-.extra-cont:last-child { padding-bottom: 2em; }
+/* extra-cont is a container for patches/output padding */
+.extra-cont {
+    padding-top: 2em;
+}
+
+.extra-cont:last-child {
+    padding-bottom: 2em;
+}
 
 /* Analysis Hunk */
 .patch {
-	width: 100%;
-	margin: 0 auto 2rem;
-	font-family: monospace;
-	font-size: 12px;
-	border: 1px solid #d7d7d7;
+    width: 100%;
+    margin: 0 auto 2rem;
+    font-family: monospace;
+    font-size: 12px;
+    border: 1px solid #d7d7d7;
 }
-.patch thead th { background-color: #f2f2f2; font-weight: bold; }
-.patch td, .patch th { padding: 7px 10px; white-space: pre-wrap; }
-.patch .none { background-color: #fff; }
-.patch .e { background-color: floralwhite; }
-.patch .e td:nth-child(2) { text-align: right; font-weight: bold; }
-.patch .add { background-color: #eaffea; }
-.patch .remove { background-color: #ffecec; }
-.patch .m { font-weight: bold; }
-.patch .lno { text-align: right; background-color: rgba(250, 251, 252, 0.3); user-select: none; }
-.patch .range { background-color: #f3f8ff; }
-.patch tfoot tr:first-child { border-top: 1px solid #d7d7d7; }
+
+.patch thead th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+.patch td, .patch th {
+    padding: 7px 10px;
+    white-space: pre-wrap;
+}
+
+.patch .none {
+    background-color: #fff;
+}
+
+.patch .e {
+    background-color: floralwhite;
+}
+
+.patch .e td:nth-child(2) {
+    text-align: right;
+    font-weight: bold;
+}
+
+.patch .add {
+    background-color: #eaffea;
+}
+
+.patch .remove {
+    background-color: #ffecec;
+}
+
+.patch .m {
+    font-weight: bold;
+}
+
+.patch .lno {
+    text-align: right;
+    background-color: rgba(250, 251, 252, 0.3);
+    user-select: none;
+}
+
+.patch .range {
+    background-color: #f3f8ff;
+}
+
+.patch tfoot tr:first-child {
+    border-top: 1px solid #d7d7d7;
+}
 
 /* Analysis Outputs */
-.outputs-cont { padding-top: 2em; }
+.outputs-cont {
+    padding-top: 2em;
+}
+
 .outputs {
-	font-family: Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-	font-size: 90%;
-	background-color: #292b2c;
+    font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 90%;
+    background-color: #292b2c;
     padding: 1em 1em 0.5em;
     margin-bottom: 2rem;
     color: #a9a9a9;
 }
-.output-cont { position: relative; padding-bottom: 0.5rem; margin-bottom: 0; }
+
+.output-cont {
+    position: relative;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0;
+}
+
 .outputs .arg {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-	color: #e8e8e8;
+    color: #e8e8e8;
 }
+
 .outputs .duration {
-	text-align: right;
+    text-align: right;
     display: block;
     right: 0;
     position: absolute;
     top: 0;
 }
-.outputs .output { white-space: pre; display: block; overflow-y: scroll; }
+
+.outputs .output {
+    white-space: pre;
+    display: block;
+    overflow-y: scroll;
+}
